@@ -19,7 +19,7 @@ Native checks cover Connections → Viewing → Connections, cancellation, displ
 
 The build workflow cross-compiles native x86, x64, and ARM64 executables, then runs each on a corresponding Windows runner. Tests cover framing and rectangle bounds, WIC decoding, certificate fingerprint hashing, OSC parsing, input coordinate mapping, resolution gating, and secret-free state reports. A separate local TLS fixture exercises the actual WinHTTP connection, monitor selection changes, and image decoding, including the host’s packed 4-bit grayscale PNG format.
 
-Check the [workflow results](https://github.com/ryangrams/su-remote/actions) for the exact commit's outcome. A configured test is not a passed test. Windows Server/Windows 11 runner coverage does not establish Windows 10 hardware compatibility.
+Check the [workflow results](https://github.com/ryangrams/portlight/actions) for the exact commit's outcome. A configured test is not a passed test. Windows Server/Windows 11 runner coverage does not establish Windows 10 hardware compatibility.
 
 ## Still requires acceptance testing
 

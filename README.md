@@ -6,13 +6,13 @@ An open source remote desktop app by **Studio Upgrade**, built for studios and c
 
 This is an **early preview**, not a production replacement for an established remote-access service. See the current limitations below.
 
-![Portlight Connections](https://raw.githubusercontent.com/ryangrams/su-remote/main/docs/images/connections-light.png)
+![Portlight Connections](https://raw.githubusercontent.com/ryangrams/portlight/main/docs/images/connections-light.png)
 
-![Portlight viewing window, synthetic displays](https://raw.githubusercontent.com/ryangrams/su-remote/main/docs/images/viewing-dark.png)
+![Portlight viewing window, synthetic displays](https://raw.githubusercontent.com/ryangrams/portlight/main/docs/images/viewing-dark.png)
 
 ## Downloads
 
-[Download preview builds](https://github.com/ryangrams/su-remote/releases) for:
+[Download preview builds](https://github.com/ryangrams/portlight/releases) for:
 
 | Component | Platform |
 | --- | --- |
