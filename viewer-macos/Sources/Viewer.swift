@@ -10,8 +10,11 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
     private let panningPopup = NSPopUpButton()
     private let bandwidthLimitField = NSComboBox()
     private var connecting = false
+    private struct ConnectionRequest { let host:String, port:Int, password:String, network:String?, managed:[String] }
     private var connectionAttempt = UUID()
+    private var pendingConnection: (attempt:UUID, request:ConnectionRequest)?
     private var activationInFlight = false
+    private var restorationInFlight = false
     private var pendingQuit: (()->Void)?
     private var testTransportConnect: ((String,Int,String)->Void)?
     private var testZeroTier: (([String:Any],@escaping([String:Any])->Void)->Void)?
@@ -30,6 +33,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
     private var toolbarAudio: NSButton?
     private var toolbarSettings: NSButton?
     private var activePopover: NSPopover?
+    private var sessionErrorAlert: NSAlert?
     private var screenshotFixture = false
     private let transport = RemoteTransport()
     private let audio = RemoteAudio()
@@ -340,7 +344,21 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
         if let desired = pendingFullScreen { pendingFullScreen = nil; if desired != (window?.styleMask.contains(.fullScreen) ?? false) { window?.toggleFullScreen(nil) } }
     }
     private func presentConnections() {
+        if let alert = sessionErrorAlert { window?.endSheet(alert.window); alert.window.orderOut(nil); sessionErrorAlert = nil }
         activePopover?.close(); window?.orderOut(nil); connectionsWindow.makeKeyAndOrderFront(nil); connectionsWindow.makeFirstResponder(hostField)
+    }
+    private func showSessionError(_ message:String) {
+        guard let window, ready else { return }
+        releaseInput(); activePopover?.close()
+        if let alert = sessionErrorAlert { alert.informativeText = message; return }
+        let alert = NSAlert(); alert.alertStyle = .warning; alert.messageText = "The computer needs attention"; alert.informativeText = message
+        alert.addButton(withTitle:"OK"); alert.addButton(withTitle:"Disconnect")
+        sessionErrorAlert = alert; let attempt = connectionAttempt
+        alert.beginSheetModal(for:window) { [weak self,weak alert] response in
+            guard let self else { return }
+            if self.sessionErrorAlert === alert { self.sessionErrorAlert = nil }
+            if response == .alertSecondButtonReturn && self.connectionAttempt == attempt && self.ready { self.disconnect() }
+        }
     }
     private var resolution:Resolution { Resolution.allCases[max(0,resolutionPopup.indexOfSelectedItem)] }
     private var color:String { ["full","color256","rgb565","gray16"][max(0,colorPopup.indexOfSelectedItem)] }
@@ -356,22 +374,30 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
     }
     @objc private func connectAction() {
         if ready || connecting { disconnect(); return }
-        guard !activationInFlight else { statusLabel.stringValue = "Finishing the previous network change…"; return }
         guard let port = validPort(portField.stringValue), !hostField.stringValue.trimmingCharacters(in:.whitespaces).isEmpty else { statusLabel.stringValue = "Enter a computer address and a port from 1 to 65535."; return }
-        let host = hostField.stringValue, password = passwordField.stringValue
         connectionAttempt = UUID(); let attempt = connectionAttempt
-        demo = false; connecting = true; connectButton.title = "Cancel"; hostField.isEnabled = false; passwordField.isEnabled = false; advancedButton.isEnabled = false
-        if !testing { UserDefaults.standard.set(host,forKey:"SU.Remote.LastHost"); UserDefaults.standard.set(portField.stringValue,forKey:"SU.Remote.LastPort") }
-        if let network = zeroTierNetwork, zeroTierTransaction == nil {
+        let request = ConnectionRequest(host:hostField.stringValue,port:port,password:passwordField.stringValue,network:zeroTierNetwork,managed:zeroTierManaged)
+        demo = false; connecting = true; connectButton.title = "Cancel"; connectButton.isEnabled = true; hostField.isEnabled = false; passwordField.isEnabled = false; advancedButton.isEnabled = false
+        if activationInFlight || restorationInFlight {
+            pendingConnection = (attempt,request); statusLabel.stringValue = "Finishing the previous network change…"; return
+        }
+        beginConnection(request,attempt:attempt)
+    }
+    private func beginConnection(_ request:ConnectionRequest,attempt:UUID) {
+        guard connectionAttempt == attempt, connecting else { return }
+        advancedButton.isEnabled = false
+        if !testing { UserDefaults.standard.set(request.host,forKey:"SU.Remote.LastHost"); UserDefaults.standard.set(String(request.port),forKey:"SU.Remote.LastPort") }
+        if let network = request.network, zeroTierTransaction == nil {
             activationInFlight = true; statusLabel.stringValue = "Activating the saved ZeroTier network…"
-            runZeroTier(["action":"activate","networkId":network,"managedNetworkIds":zeroTierManaged,"sessionId":sessionID]) { [weak self] result in
+            runZeroTier(["action":"activate","networkId":network,"managedNetworkIds":request.managed,"sessionId":sessionID]) { [weak self] result in
                 guard let self else { return }
                 guard self.connectionAttempt == attempt, self.connecting else {
                     if let transaction = result["transactionId"] as? String {
                         self.runZeroTier(["action":"restore","transactionId":transaction]) { [weak self] restored in
                             guard let self else { return }
-                            self.statusLabel.stringValue = restored["ok"] as? Bool == true ? "Connection canceled." : "Connection canceled. ZeroTier restoration needs attention."
-                            self.finishNetworkChange()
+                            let succeeded = restored["ok"] as? Bool == true
+                            self.statusLabel.stringValue = succeeded ? "Connection canceled." : "Connection canceled. ZeroTier restoration needs attention."
+                            self.finishNetworkChange(succeeded:succeeded)
                         }
                     } else { self.finishNetworkChange() }
                     return
@@ -382,22 +408,34 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
                     self.statusLabel.stringValue = result["message"] as? String ?? result["error"] as? String ?? "ZeroTier activation failed."; return
                 }
                 self.zeroTierTransaction = result["transactionId"] as? String
-                self.startTransport(host:host,port:port,password:password)
+                self.startTransport(host:request.host,port:request.port,password:request.password)
             }
-        } else { startTransport(host:host,port:port,password:password) }
+        } else { startTransport(host:request.host,port:request.port,password:request.password) }
     }
     private func startTransport(host:String,port:Int,password:String) {
         if let testTransportConnect { testTransportConnect(host,port,password); return }
         transport.connect(host:host,port:port,password:password)
     }
-    private func finishNetworkChange() {
-        activationInFlight = false; connectButton.isEnabled = true; advancedButton.isEnabled = true
-        if let completion = pendingQuit { pendingQuit = nil; completion() }
+    private func finishNetworkChange(succeeded:Bool = true) {
+        activationInFlight = false; restorationInFlight = false; connectButton.isEnabled = true; advancedButton.isEnabled = true
+        if let completion = pendingQuit { pendingQuit = nil; pendingConnection = nil; completion(); return }
+        if let pending = pendingConnection {
+            pendingConnection = nil
+            if succeeded { beginConnection(pending.request,attempt:pending.attempt) }
+            else { connecting = false; connectButton.title = "Connect"; hostField.isEnabled = true; passwordField.isEnabled = true }
+        }
     }
-    private func disconnect() { connectionAttempt = UUID(); releaseInput(); transport.disconnect(); didDisconnect(); statusLabel.stringValue = "Disconnected." }
+    private func disconnect() { connectionAttempt = UUID(); pendingConnection = nil; releaseInput(); transport.disconnect(); didDisconnect(); statusLabel.stringValue = "Disconnected." }
     private func didDisconnect() {
-        ready = false; connecting = false; acceptedRevision = -1; connectButton.title = "Connect"; connectButton.isEnabled = !activationInFlight; advancedButton.isEnabled = !activationInFlight; hostField.isEnabled = true; passwordField.isEnabled = true; presentConnections(); audio.stop(); pointerButtons = 0; pressedKeys.removeAll(); modifiers = []
-        if let transaction = zeroTierTransaction { zeroTierTransaction = nil; runZeroTier(["action":"restore","transactionId":transaction]) { [weak self] result in if result["ok"] as? Bool != true { self?.statusLabel.stringValue = "Disconnected; ZeroTier restore needs attention." } } }
+        ready = false; connecting = false; acceptedRevision = -1; connectButton.title = "Connect"; connectButton.isEnabled = !activationInFlight && !restorationInFlight; advancedButton.isEnabled = connectButton.isEnabled; hostField.isEnabled = true; passwordField.isEnabled = true; presentConnections(); audio.stop(); pointerButtons = 0; pressedKeys.removeAll(); modifiers = []
+        if let transaction = zeroTierTransaction {
+            zeroTierTransaction = nil; restorationInFlight = true; connectButton.isEnabled = false; advancedButton.isEnabled = false
+            runZeroTier(["action":"restore","transactionId":transaction]) { [weak self] result in
+                guard let self else { return }
+                if result["ok"] as? Bool != true { self.statusLabel.stringValue = "Disconnected; ZeroTier restore needs attention." }
+                self.finishNetworkChange(succeeded:result["ok"] as? Bool == true)
+            }
+        }
     }
     private func receive(_ object:[String:Any],data:Data?) {
         guard let type = object["type"] as? String else { return }
@@ -444,7 +482,10 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
             guard let id = object["display"] as? String, selected.contains(id), let x = object["x"] as? Double, let y = object["y"] as? Double, x.isFinite, y.isFinite, (0..<1).contains(x), (0..<1).contains(y) else { return }
             for (monitorID,c) in canvases { c.remoteCursor = monitorID == id ? NSPoint(x:x,y:y) : nil }
         case "pong": if let timestamp = object["time"] as? Double { latency = (Date().timeIntervalSince1970-timestamp)*1000 }
-        case "error": statusLabel.stringValue = object["message"] as? String ?? "The computer reported an error."; if object["code"] as? String == "authentication" { ready = false }
+        case "error":
+            let message = object["message"] as? String ?? "The computer reported an error."
+            if object["code"] as? String == "authentication" { disconnect(); statusLabel.stringValue = message }
+            else { statusLabel.stringValue = message; if ready { showSessionError(message) } }
         case "stats": break
         default: break
         }
@@ -607,13 +648,14 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
     func windowDidResignKey(_ notification:Notification) { releaseInput() }
     func windowShouldClose(_ sender:NSWindow) -> Bool { if sender === window { disconnect(); return false }; NSApp.terminate(nil); return false }
     func prepareToQuit(_ completion:@escaping()->Void) {
-        connectionAttempt = UUID(); connecting = false
-        if activationInFlight { pendingQuit = completion; transport.disconnect(); audio.stop(); osc.stop(); statsTimer?.invalidate(); return }
+        connectionAttempt = UUID(); pendingConnection = nil; connecting = false
+        if activationInFlight || restorationInFlight { pendingQuit = completion; releaseInput(); transport.disconnect(); audio.stop(); osc.stop(); statsTimer?.invalidate(); return }
         releaseInput(); transport.disconnect(); audio.stop(); osc.stop(); statsTimer?.invalidate()
         if let transaction = zeroTierTransaction {
-            zeroTierTransaction = nil
+            zeroTierTransaction = nil; restorationInFlight = true; pendingQuit = completion
             runZeroTier(["action":"restore","transactionId":transaction]) { [weak self] result in
-                if result["ok"] as? Bool != true { self?.statusLabel.stringValue = "ZeroTier restore needs attention; recovery transaction is saved." }; completion()
+                if result["ok"] as? Bool != true { self?.statusLabel.stringValue = "ZeroTier restore needs attention; recovery transaction is saved." }
+                self?.finishNetworkChange(succeeded:result["ok"] as? Bool == true)
             }
         } else { RunLoop.main.perform(inModes:[.default,.modalPanel,.eventTracking],block:completion) }
     }
@@ -674,7 +716,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
             osc.reply(peer,value:jsonString(["version":1,"sessionId":sessionID,"connected":ready,"host":hostField.stringValue,"displays":selectedMonitors.map(\.id),"resolution":resolution.rawValue,"color":color,"zoom":zoom,"panMode":followButton.state == .on ? "follow" : "manual","paused":paused,"audio":audioButton.state == .on,"viewOnly":viewOnlyButton.state == .on,"fullscreen":window?.styleMask.contains(.fullScreen) ?? false]) ?? "{}")
         case "/su/remote/connect":
             guard let value = firstString(), !value.isEmpty else { error("Expected a saved connection name or computer address"); return }
-            if !recallPreset(value,connect:true) { if ready { disconnect() }; hostField.stringValue = value; connectAction() }
+            if !recallPreset(value,connect:true) { if ready || connecting { disconnect() }; hostField.stringValue = value; connectAction() }
         case "/su/remote/disconnect": disconnect()
         case "/su/remote/preset/recall": if let id = firstString(), recallPreset(id,connect:false) {} else { error("Unknown saved connection") }
         case "/su/remote/monitors/select":
@@ -780,9 +822,13 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
         setZoom(0.5); checks["zoom_action"] = !autoFit && zoom == 0.5; fitAction(); checks["fit_action"] = autoFit
         window?.appearance = NSAppearance(named:.darkAqua); checks["dark_theme_switch"] = window?.effectiveAppearance.bestMatch(from:[.aqua,.darkAqua]) == .darkAqua
         window?.appearance = nil; checks["automatic_theme_restored"] = window?.appearance == nil
-        disconnect(); checks["disconnect_returns_to_connections"] = connectionsWindow.isVisible && window?.isVisible == false
+        receive(["type":"error","code":"capture","message":"Allow Screen Recording on the computer."],data:nil)
+        checks["session_error_visible_in_viewing_window"] = sessionErrorAlert?.informativeText == "Allow Screen Recording on the computer." && window?.attachedSheet != nil && window?.isVisible == true
+        disconnect(); checks["disconnect_returns_to_connections"] = connectionsWindow.isVisible && window?.isVisible == false && sessionErrorAlert == nil
         hostField.stringValue = "synthetic.local"; portField.stringValue = "0"; connectAction(); checks["invalid_port_keeps_setup"] = !connecting && connectionsWindow.isVisible
-        portField.stringValue = "5920"; passwordField.stringValue = "synthetic-password"; zeroTierNetwork = "0123456789abcdef"
+        portField.stringValue = "5920"; hostField.stringValue = "invalid/computer"; connectAction()
+        checks["invalid_address_keeps_setup_editable"] = !connecting && connectionsWindow.isVisible && hostField.isEnabled && passwordField.isEnabled && statusLabel.stringValue == "Enter a host name or IP address and a valid port."
+        hostField.stringValue = "synthetic.local"; passwordField.stringValue = "synthetic-password"; zeroTierNetwork = "0123456789abcdef"
         var activationCompletion: (([String:Any])->Void)?
         var restoreCalls = 0, transportCalls = 0
         var connectedHost = "", connectedPort = 0
@@ -798,12 +844,34 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
         hostField.stringValue = "before-change.local"; connectAction(); hostField.stringValue = "after-change.local"; portField.stringValue = "5999"
         activationCompletion?(["ok":true,"transactionId":"synthetic-completed"])
         checks["connection_uses_attempt_snapshot"] = transportCalls == 1 && connectedHost == "before-change.local" && connectedPort == 5920
-        receive(["type":"error","code":"authentication","message":"Incorrect password"],data:nil); didDisconnect()
-        checks["authentication_error_keeps_setup"] = !ready && !connecting && connectionsWindow.isVisible && statusLabel.stringValue == "Incorrect password"
+        receive(["type":"error","code":"authentication","message":"Incorrect password"],data:nil)
+        checks["authentication_error_keeps_setup"] = !ready && !connecting && connectionsWindow.isVisible && hostField.isEnabled && passwordField.isEnabled && statusLabel.stringValue == "Incorrect password"
+        var restoreCompletion: (([String:Any])->Void)?, quitCompleted = false
+        testZeroTier = { request,completion in if request["action"] as? String == "restore" { restoreCompletion = completion } }
+        zeroTierNetwork = nil; zeroTierTransaction = "synthetic-switch-restore"; didDisconnect()
+        hostField.stringValue = "queued-computer.local"; portField.stringValue = "5921"; connectAction(); hostField.stringValue = "later-edit.local"
+        let callsBeforeRestore = transportCalls
+        let switchWaited = pendingConnection != nil && connecting && transportCalls == callsBeforeRestore
+        restoreCompletion?(["ok":true])
+        checks["connection_switch_resumes_after_restore"] = switchWaited && transportCalls == callsBeforeRestore+1 && connectedHost == "queued-computer.local" && connectedPort == 5921
+        disconnect(); zeroTierTransaction = "synthetic-cancel-restore"; didDisconnect(); connectAction(); connectAction()
+        let callsBeforeCancel = transportCalls; restoreCompletion?(["ok":true])
+        checks["cancel_clears_queued_connection"] = pendingConnection == nil && !connecting && transportCalls == callsBeforeCancel
+        zeroTierTransaction = "synthetic-failed-restore"; didDisconnect(); connectAction()
+        let callsBeforeFailure = transportCalls; restoreCompletion?(["ok":false])
+        checks["failed_restore_blocks_queued_connection"] = pendingConnection == nil && !connecting && transportCalls == callsBeforeFailure
+        zeroTierTransaction = "synthetic-pending-restore"; didDisconnect(); connectAction()
+        let callsBeforeQuit = transportCalls
+        prepareToQuit { quitCompleted = true }
+        checks["quit_waits_for_pending_network_restore"] = restorationInFlight && !quitCompleted && pendingConnection == nil
+        restoreCompletion?(["ok":true]); checks["quit_completes_after_network_restore"] = quitCompleted && !restorationInFlight && transportCalls == callsBeforeQuit
         testZeroTier = nil; testTransportConnect = nil; zeroTierNetwork = nil
-        let result:[String:Any] = ["passed":checks.values.allSatisfy { $0 },"checks":checks]
-        if let data = try? JSONSerialization.data(withJSONObject:result,options:[.prettyPrinted,.sortedKeys]) { try? data.write(to:URL(fileURLWithPath:report)) }
-        NSApp.terminate(nil)
+        RemoteTransport.runCallbackRegression { transportChecks in
+            checks.merge(transportChecks,uniquingKeysWith:{ _,new in new })
+            let result:[String:Any] = ["passed":checks.values.allSatisfy { $0 },"checks":checks]
+            if let data = try? JSONSerialization.data(withJSONObject:result,options:[.prettyPrinted,.sortedKeys]) { try? data.write(to:URL(fileURLWithPath:report)) }
+            NSApp.terminate(nil)
+        }
     }
     func runIntegration(port:Int,password:String,fingerprint:String,report:String,snapshot:String) {
         testing = true; transport.testFingerprint = fingerprint

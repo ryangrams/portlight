@@ -45,7 +45,7 @@ python3 test-appearance.py
 
 The integration test starts a temporary loopback fixture, uses an exact test certificate fingerprint, and verifies real TLS/WebSocket reception, decoded image tiles, monitor selection, and Connections → Viewing → Connections transitions. It writes `build/integration-report.json` and `build/integration-viewer.png`. Set `PORTLIGHT_TEST_SERVER` to use a specific local fixture executable.
 
-The appearance test first runs 17 native UI regression checks, including cancellation during a stubbed ZeroTier activation, then generates 12 bounded native captures under `build/design-review`, plus `index.json`: Connections and Viewing in light/dark at normal/minimum sizes, and both toolbar popovers in each appearance. It uses synthetic connection/display data, disables OSC during capture, and never connects to a computer, captures a real desktop, sends input, changes ZeroTier networks, or reads Keychain passwords. CI can run it with the repository’s `.test-venv/bin/python`.
+The appearance test first runs 27 native UI and transport regression checks, including cancellation during a stubbed ZeroTier activation, quit during restoration, visible session errors, and stale connection callbacks, then generates 12 bounded native captures under `build/design-review`, plus `index.json`: Connections and Viewing in light/dark at normal/minimum sizes, and both toolbar popovers in each appearance. It uses synthetic connection/display data, disables OSC during capture, and never connects to a computer, captures a real desktop, sends input, changes ZeroTier networks, or reads Keychain passwords. CI can run it with the repository’s `.test-venv/bin/python`.
 
 A single capture can be generated with:
 

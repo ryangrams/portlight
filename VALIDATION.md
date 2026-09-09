@@ -6,6 +6,8 @@ This file distinguishes implemented behavior from real-machine acceptance testin
 
 Both native viewers provide a bounded synthetic screenshot mode covering Connections, the viewing window, settings, and minimum window sizes in light and dark appearances. The Windows workflow uploads these screenshots for visual review. Synthetic images contain no private desktop contents. Appearance changes are handled using system preferences; the test-only switches do not change OS preferences.
 
+Native checks cover Connections → Viewing → Connections, cancellation, display selection, and toolbar geometry. Focused regressions cover canceled network activation, restoration before quit, replacement connection intents, stale transport callbacks, and visible session errors. Native Windows image tests decode known 4-bit grayscale samples through WIC and verify their intensity values.
+
 ## Local macOS checks
 
 - Native server self-tests: scaling/native limits/portrait geometry; color quantization and changed tiles; visible-region crop; μ-law encoding; password persistence/verification; TLS identity loading; framing.

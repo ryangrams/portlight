@@ -29,7 +29,7 @@
 #include <winhttp.h>
 using json = nlohmann::json;
 static constexpr UINT WM_NET = WM_APP + 1, WM_FRAME = WM_APP + 2,
-                      WM_OSC = WM_APP + 3;
+                      WM_OSC = WM_APP + 3, WM_ZEROTIER = WM_APP + 4;
 static constexpr int TOP = 56;
 enum {
   ID_HOST = 100,
@@ -137,7 +137,7 @@ static constexpr int ID_SAVED_LIST = 170, ID_NEW_CONNECTION = 171,
                      ID_ZOOM_MENU = 177, ID_AUDIO_TOOL = 178,
                      ID_SETTINGS_TOOL = 179, ID_SETTINGS_DONE = 180,
                      ID_BACK_CONNECTIONS = 181, ID_ALLOW_CONTROL = 182,
-                     ID_BANDWIDTH = 183;
+                     ID_BANDWIDTH = 183, ID_CONNECTION_SAVE = 184;
 static std::map<int, RECT> fieldRects;
 static std::vector<std::string> savedNames;
 static RECT savedCard{}, connectCard{};
@@ -654,6 +654,47 @@ static constexpr int ID_PRESETS = 140, ID_ZTSTATUS = 141, ID_ZTNETWORK = 142,
                      ID_ZTMANAGED = 143, ID_Z100 = 144;
 static std::string zeroTierTransaction;
 static std::atomic<bool> zeroTierBusy{false};
+static bool zeroTierActivating = false, zeroTierRestorePending = false,
+            quitAfterZeroTier = false;
+static uint64_t zeroTierAttempt = 0;
+static std::string zeroTierHost, zeroTierPassword;
+static json queuedConnection = json::object();
+static void clearQueuedConnection() {
+  if (queuedConnection.contains("password")) {
+    auto &password = queuedConnection["password"].get_ref<std::string &>();
+    SecureZeroMemory(password.data(), password.size());
+  }
+  queuedConnection.clear();
+}
+static void queueNextConnection() {
+  clearQueuedConnection();
+  for (auto entry :
+       std::vector<std::pair<const char *, int>>{{"host", ID_HOST},
+                                                 {"port", ID_PORT},
+                                                 {"password", ID_PASSWORD},
+                                                 {"name", ID_PRESETS},
+                                                 {"network", ID_ZTNETWORK},
+                                                 {"managed", ID_ZTMANAGED}})
+    queuedConnection[entry.first] = narrow(controlText(entry.second));
+  connecting = true;
+  SetWindowTextW(controls[ID_CONNECT], L"Cancel");
+  status(L"Connecting after network restoration…");
+}
+static void clearZeroTierConnection() {
+  SecureZeroMemory(zeroTierPassword.data(), zeroTierPassword.size());
+  zeroTierPassword.clear();
+  zeroTierHost.clear();
+}
+static void cancelZeroTierActivation() {
+  if (!zeroTierActivating)
+    return;
+  ++zeroTierAttempt;
+  zeroTierActivating = false;
+  connecting = false;
+  clearZeroTierConnection();
+  SetWindowTextW(controls[ID_CONNECT], L"Connect");
+  status(L"Cancelling connection and restoring networks…");
+}
 static json runZeroTier(const json &request) {
   wchar_t module[MAX_PATH]{};
   GetModuleFileNameW(nullptr, module, MAX_PATH);
@@ -733,33 +774,107 @@ static json runZeroTier(const json &request) {
             {"message", "ZeroTier helper returned an invalid response"}};
   }
 }
-static void zeroTierOperation(const json &request, const std::string &purpose) {
+static void zeroTierOperation(const json &request, const std::string &purpose,
+                              uint64_t attempt = 0) {
   if (zeroTierBusy.exchange(true)) {
     status(L"A ZeroTier operation is already in progress");
     return;
   }
-  std::thread([request, purpose] {
+  std::thread([request, purpose, attempt] {
     auto result = runZeroTier(request);
     result["type"] = "zeroTierResult";
     result["purpose"] = purpose;
-    zeroTierBusy = false;
-    post(result);
+    result["attempt"] = attempt;
+    auto *message = new json(std::move(result));
+    // A local helper completion must not compete with the bounded remote queue.
+    if (!PostMessageW(mainWindow, WM_ZEROTIER, 0, (LPARAM)message)) {
+      if (purpose == "activate" && message->value("ok", false)) {
+        auto transaction = message->value("transactionId", "");
+        if (!transaction.empty())
+          runZeroTier({{"action", "restore"}, {"transactionId", transaction}});
+      }
+      delete message;
+      zeroTierBusy = false;
+    }
   }).detach();
 }
 static void restoreZeroTier() {
   if (zeroTierTransaction.empty())
     return;
+  if (zeroTierBusy) {
+    zeroTierRestorePending = true;
+    return;
+  }
+  zeroTierRestorePending = false;
   std::string id = zeroTierTransaction;
   zeroTierTransaction.clear();
+  status(L"Restoring previous ZeroTier networks…");
   zeroTierOperation({{"action", "restore"}, {"transactionId", id}}, "restore");
 }
-static void connectNow();
+static void startConnection();
+static void finishZeroTierWork() {
+  if (zeroTierBusy)
+    return;
+  if ((zeroTierRestorePending || quitAfterZeroTier) &&
+      !zeroTierTransaction.empty()) {
+    restoreZeroTier();
+    return;
+  }
+  zeroTierRestorePending = false;
+  if (quitAfterZeroTier) {
+    DestroyWindow(mainWindow);
+  } else if (!queuedConnection.empty()) {
+    for (auto entry :
+         std::vector<std::pair<const char *, int>>{{"host", ID_HOST},
+                                                   {"port", ID_PORT},
+                                                   {"password", ID_PASSWORD},
+                                                   {"name", ID_PRESETS},
+                                                   {"network", ID_ZTNETWORK},
+                                                   {"managed", ID_ZTMANAGED}})
+      SetWindowTextW(controls[entry.second],
+                     wide(queuedConnection.value(entry.first, "")).c_str());
+    clearQueuedConnection();
+    connecting = false;
+    startConnection();
+  }
+}
+static std::string connectionAddress();
+static bool validPortInput() {
+  auto port = controlText(ID_PORT);
+  if (port.empty() || port.size() > 5 ||
+      !std::all_of(port.begin(), port.end(),
+                   [](wchar_t c) { return c >= L'0' && c <= L'9'; }) ||
+      std::stoi(port) < 1 || std::stoi(port) > 65535) {
+    status(L"Enter a port between 1 and 65535.");
+    SetFocus(controls[ID_PORT]);
+    return false;
+  }
+  return true;
+}
+static void connectNow(std::string host = {}, std::string password = {});
 static void startConnection() {
+  if (!queuedConnection.empty()) {
+    clearQueuedConnection();
+    connecting = false;
+    SetWindowTextW(controls[ID_CONNECT], L"Connect");
+    status(L"Connection cancelled; network restoration continues");
+    return;
+  }
+  if (zeroTierActivating) {
+    cancelZeroTierActivation();
+    return;
+  }
   if (connected || connecting) {
     connectNow();
     restoreZeroTier();
     return;
   }
+  if (zeroTierBusy || quitAfterZeroTier) {
+    status(L"Wait for the current ZeroTier operation");
+    return;
+  }
+  if (!validPortInput())
+    return;
   auto desired = narrow(controlText(ID_ZTNETWORK));
   if (desired.empty()) {
     connectNow();
@@ -801,13 +916,24 @@ static void startConnection() {
     if (!id.empty())
       managed.push_back(id);
   }
+  zeroTierHost = connectionAddress();
+  zeroTierPassword = narrow(controlText(ID_PASSWORD));
+  if (zeroTierHost.empty()) {
+    clearZeroTierConnection();
+    SetFocus(controls[ID_HOST]);
+    return;
+  }
+  zeroTierActivating = true;
+  connecting = true;
+  ++zeroTierAttempt;
+  SetWindowTextW(controls[ID_CONNECT], L"Cancel");
   status(L"Preparing the saved ZeroTier network…");
   zeroTierOperation(
       {{"action", "activate"},
        {"networkId", desired},
        {"managedNetworkIds", managed},
        {"sessionId", "windows-" + std::to_string(GetCurrentProcessId())}},
-      "activate");
+      "activate", zeroTierAttempt);
 }
 struct Endpoint {
   std::wstring host;
@@ -857,7 +983,7 @@ static std::string connectionAddress() {
     auto endpoint = parseEndpoint(raw);
     int port = std::stoi(p);
     if (port < 1 || port > 65535)
-      throw std::runtime_error("Port must be between1and65535");
+      throw std::runtime_error("Port must be between 1 and 65535");
     auto host = narrow(endpoint.host);
     if (host.find(':') != std::string::npos && host.front() != '[')
       host = "[" + host + "]";
@@ -866,7 +992,7 @@ static std::string connectionAddress() {
     return raw;
   }
 }
-static void connectNow() {
+static void connectNow(std::string host, std::string password) {
   if (connecting || connected) {
     releaseInput();
     closeTransport();
@@ -876,19 +1002,12 @@ static void connectNow() {
     layout();
     return;
   }
-  if (controls.count(ID_PORT)) {
-    try {
-      int port = std::stoi(controlText(ID_PORT));
-      if (port < 1 || port > 65535)
-        throw std::runtime_error("port");
-    } catch (...) {
-      status(L"Enter a port between 1 and 65535.");
-      SetFocus(controls[ID_PORT]);
-      return;
-    }
+  if (host.empty() && !validPortInput())
+    return;
+  if (host.empty()) {
+    host = connectionAddress();
+    password = narrow(controlText(ID_PASSWORD));
   }
-  std::string host = connectionAddress();
-  std::string password = narrow(controlText(ID_PASSWORD));
   if (host.empty()) {
     SetFocus(controls[ID_HOST]);
     return;
@@ -1143,6 +1262,8 @@ static void storePreset() {
 }
 static std::vector<std::string> pendingSelection;
 static void recallPreset(const std::string &name) {
+  if (zeroTierActivating)
+    cancelZeroTierActivation();
   json p;
   {
     std::lock_guard<std::mutex> lock(settingsMutex);
@@ -1332,7 +1453,11 @@ static void handleOSC(const OSCCommand &c) {
         else
           SetWindowTextW(controls[ID_HOST], wide(name).c_str());
       }
-      if (!connected && !connecting)
+      if (connected || connecting || zeroTierActivating)
+        startConnection();
+      if (zeroTierBusy)
+        queueNextConnection();
+      else
         startConnection();
     } else if (p == "/su/remote/preset/recall") {
       recallPreset(a.at(0).get<std::string>());
@@ -1733,26 +1858,54 @@ static void populateDisplays(const json &msg) {
   enforceResolution();
   InvalidateRect(controls[ID_RES], nullptr, TRUE);
 }
-static void handleNetwork(const json &msg) {
+static void handleNetwork(const json &msg, bool localHelper = false) {
   if (msg.contains("_generation") &&
       msg["_generation"].get<uint64_t>() != connectGeneration)
     return;
   auto type = msg.value("type", "");
   if (type == "zeroTierResult") {
+    if (!localHelper)
+      return;
+    zeroTierBusy = false;
     std::string purpose = msg.value("purpose", "");
+    bool currentActivation =
+        purpose == "activate" && zeroTierActivating &&
+        msg.value("attempt", uint64_t(0)) == zeroTierAttempt;
+    if (purpose == "activate" && currentActivation) {
+      zeroTierActivating = false;
+      connecting = false;
+      SetWindowTextW(controls[ID_CONNECT], L"Connect");
+    }
     if (!msg.value("ok", false)) {
+      if (!queuedConnection.empty()) {
+        clearQueuedConnection();
+        connecting = false;
+        SetWindowTextW(controls[ID_CONNECT], L"Connect");
+      }
+      if (purpose == "activate")
+        clearZeroTierConnection();
       MessageBoxW(
           mainWindow,
           wide(msg.value("message", "ZeroTier operation failed")).c_str(),
           L"ZeroTier", MB_OK | MB_ICONINFORMATION);
+      finishZeroTierWork();
       return;
     }
     if (purpose == "activate") {
       zeroTierTransaction = msg.value("transactionId", "");
-      connectNow();
-      if (!connected && !connecting)
+      if (currentActivation && !quitAfterZeroTier) {
+        auto host = std::move(zeroTierHost),
+             password = std::move(zeroTierPassword);
+        clearZeroTierConnection();
+        connectNow(std::move(host), std::move(password));
+        if (!connected && !connecting)
+          restoreZeroTier();
+      } else {
+        clearZeroTierConnection();
         restoreZeroTier();
-    } else if (purpose == "status") {
+      }
+    } else if (purpose == "status" && !quitAfterZeroTier &&
+               !zeroTierRestorePending) {
       std::wstring text = msg.value("online", false)
                               ? L"ZeroTier is online.\n\n"
                               : L"ZeroTier is offline.\n\n";
@@ -1793,6 +1946,7 @@ static void handleNetwork(const json &msg) {
       status(purpose == "forget"
                  ? L"Current networks kept; saved transaction cleared"
                  : L"Previous ZeroTier network state restored");
+    finishZeroTierWork();
     return;
   }
   if (type == "welcome") {
@@ -1857,15 +2011,20 @@ static void handleNetwork(const json &msg) {
     if (geometryChanged && !fit)
       SetTimer(mainWindow, 2, 100, nullptr);
   } else if (type == "error") {
+    auto message = wide(msg.value("message", "Computer error"));
     if (integrationMode)
       integrationFailure = msg.value("message", "Computer error");
-    status(wide(msg.value("message", "Computer error")));
+    bool wasConnected = connected;
     if (msg.value("code", "") == "authentication") {
       closeTransport();
       restoreZeroTier();
       SetWindowTextW(controls[ID_CONNECT], L"Connect");
       layout();
     }
+    status(message);
+    if (wasConnected && !integrationMode)
+      MessageBoxW(mainWindow, message.c_str(), L"Portlight Host",
+                  MB_OK | MB_ICONINFORMATION);
   } else if (type == "disconnected") {
     if (integrationMode)
       integrationFailure = msg.value("message", "Disconnected");
@@ -2024,6 +2183,8 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                      advancedOpen ? L"Advanced  ▴" : L"Advanced  ▾");
       layoutConnections();
     } else if (id == ID_NEW_CONNECTION) {
+      if (zeroTierActivating)
+        cancelZeroTierActivation();
       SetWindowTextW(controls[ID_HOST], L"");
       SetWindowTextW(controls[ID_PASSWORD], L"");
       SetWindowTextW(controls[ID_PORT], L"5920");
@@ -2031,6 +2192,17 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
       SetWindowTextW(controls[ID_ZTMANAGED], L"");
       SetWindowTextW(controls[ID_PRESETS], L"New connection");
       SetFocus(controls[ID_HOST]);
+    } else if (id == ID_CONNECTION_SAVE) {
+      auto host = controlText(ID_HOST);
+      if (host.empty()) {
+        SetFocus(controls[ID_HOST]);
+        return 0;
+      }
+      auto name = controlText(ID_PRESETS);
+      if (name.empty() || name == L"New connection" || name == L"Default")
+        SetWindowTextW(controls[ID_PRESETS], host.c_str());
+      storePreset();
+      refreshSavedConnections();
     } else if (id == ID_SAVED_LIST && code == LBN_SELCHANGE) {
       int index = (int)SendMessageW(controls[id], LB_GETCURSEL, 0, 0);
       if (index >= 0 && index < (int)savedNames.size()) {
@@ -2189,6 +2361,11 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
            DT_SINGLELINE | DT_VCENTER);
     return TRUE;
   }
+  case WM_ZEROTIER: {
+    std::unique_ptr<json> message((json *)lp);
+    handleNetwork(*message, true);
+    return 0;
+  }
   case WM_NET: {
     pendingControlMessages--;
     std::unique_ptr<json> p((json *)lp);
@@ -2233,11 +2410,20 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (LOWORD(wp) == WA_INACTIVE)
       releaseAll();
     return 0;
+  case WM_CLOSE:
+    quitAfterZeroTier = true;
+    clearQueuedConnection();
+    cancelZeroTierActivation();
+    releaseAll();
+    closeTransport();
+    stopAudio();
+    status(L"Closing after network restoration…");
+    finishZeroTierWork();
+    return 0;
   case WM_DESTROY:
     releaseAll();
-    if (!zeroTierTransaction.empty())
-      runZeroTier(
-          {{"action", "restore"}, {"transactionId", zeroTierTransaction}});
+    clearZeroTierConnection();
+    clearQueuedConnection();
     stopping = true;
     closeTransport();
     stopAudio();
@@ -2262,6 +2448,39 @@ static int selfTest() {
     binary.insert(binary.end(), header.begin(), header.end());
     binary.push_back(42);
     auto envelope = su_remote::parseEnvelope(binary);
+    zeroTierActivating = true;
+    connecting = true;
+    zeroTierHost = "test.invalid";
+    zeroTierPassword = "test-secret";
+    auto attempt = zeroTierAttempt;
+    cancelZeroTierActivation();
+    test("pending network activation cancellation invalidates attempt",
+         !zeroTierActivating && !connecting && zeroTierAttempt != attempt &&
+             zeroTierHost.empty() && zeroTierPassword.empty());
+    zeroTierTransaction = "test-recovery";
+    zeroTierBusy = true;
+    restoreZeroTier();
+    test("network restoration waits without losing transaction",
+         zeroTierRestorePending && zeroTierTransaction == "test-recovery");
+    zeroTierBusy = false;
+    zeroTierRestorePending = false;
+    zeroTierTransaction.clear();
+    queueNextConnection();
+    test("replacement connection intent waits for network restoration",
+         connecting && !queuedConnection.empty());
+    startConnection();
+    test("cancel removes queued connection intent",
+         !connecting && queuedConnection.empty());
+    SetWindowTextW(controls[ID_PORT], L"0");
+    test("invalid port rejected before network activation", !validPortInput());
+    SetWindowTextW(controls[ID_PORT], L"5920");
+    test("default port accepted", validPortInput());
+    zeroTierBusy = true;
+    handleNetwork(
+        {{"type", "zeroTierResult"}, {"purpose", "status"}, {"ok", true}});
+    test("remote peer cannot spoof local network helper completion",
+         zeroTierBusy);
+    zeroTierBusy = false;
     test("binary framing preserves payload",
          envelope.header["revision"] == 1 &&
              binary[envelope.payloadOffset] == 42);
@@ -2426,7 +2645,7 @@ static bool captureWindowPNG(HWND window, const std::wstring &path) {
   auto old = SelectObject(memory, bitmap);
   RedrawWindow(window, nullptr, nullptr,
                RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
-  BOOL painted = PrintWindow(window, memory, 2);
+  BOOL painted = PrintWindow(window, memory, 0);
   if (!painted)
     painted = BitBlt(memory, 0, 0, width, height, source, 0, 0, SRCCOPY);
   SelectObject(memory, old);
@@ -2550,9 +2769,29 @@ static void visualDesktop() {
   DeleteDC(dc);
   ReleaseDC(nullptr, screen);
 }
+static void settleVisualWindow(HWND window) {
+  MSG message;
+  unsigned count = 0;
+  while (count++ < 1000 && PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
+    TranslateMessage(&message);
+    DispatchMessageW(&message);
+  }
+  layout();
+  RedrawWindow(window, nullptr, nullptr,
+               RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME);
+  GdiFlush();
+  HMODULE dwm = LoadLibraryW(L"dwmapi.dll");
+  if (dwm) {
+    using Flush = HRESULT(WINAPI *)();
+    auto flush = (Flush)GetProcAddress(dwm, "DwmFlush");
+    if (flush)
+      flush();
+    FreeLibrary(dwm);
+  }
+}
 static int visualTest(const std::wstring &folder) {
   CreateDirectoryW(folder.c_str(), nullptr);
-  json shots = json::array();
+  json shots = json::array(), geometry = json::object();
   try {
     settings["presets"] = {
         {"Studio Mac",
@@ -2563,6 +2802,45 @@ static int visualTest(const std::wstring &folder) {
     SetWindowTextW(controls[ID_HOST], L"studio-mac.local");
     SetWindowTextW(controls[ID_PASSWORD], L"");
     auto shot = [&](const std::wstring &name, HWND window) {
+      settleVisualWindow(window);
+      RECT bounds;
+      GetClientRect(window, &bounds);
+      json item = {{"width", bounds.right}, {"height", bounds.bottom}};
+      if (window == mainWindow && connected) {
+        for (int id : {ID_BACK_CONNECTIONS, ID_DISPLAYS_MENU, ID_ZOOM_MENU,
+                       ID_AUDIO_TOOL, ID_SETTINGS_TOOL}) {
+          RECT control;
+          GetWindowRect(controls[id], &control);
+          MapWindowPoints(nullptr, mainWindow, (POINT *)&control, 2);
+          if (!(GetWindowLongW(controls[id], GWL_STYLE) & WS_VISIBLE) ||
+              control.left < 0 || control.top < 0 ||
+              control.right > bounds.right || control.bottom > bounds.bottom)
+            throw std::runtime_error("Viewing toolbar exceeds client bounds");
+        }
+        RECT picture;
+        GetWindowRect(canvas, &picture);
+        MapWindowPoints(nullptr, mainWindow, (POINT *)&picture, 2);
+        if (picture.left != 0 || picture.top != px(TOP) ||
+            picture.right != bounds.right || picture.bottom != bounds.bottom)
+          throw std::runtime_error(
+              "Viewing canvas does not fill available area");
+        item["toolbarInsideClient"] = true;
+        item["canvasFillsClient"] = true;
+      }
+      if (window == mainWindow && !connected) {
+        SCROLLINFO scroll{};
+        scroll.cbSize = sizeof(scroll);
+        scroll.fMask = SIF_ALL;
+        GetScrollInfo(connectionsPage, SB_VERT, &scroll);
+        item["scrollable"] = scroll.nMax >= (int)scroll.nPage;
+        item["scrollbarVisible"] =
+            (GetWindowLongW(connectionsPage, GWL_STYLE) & WS_VSCROLL) != 0;
+        if (scroll.nMax >= (int)scroll.nPage &&
+            !item["scrollbarVisible"].get<bool>())
+          throw std::runtime_error(
+              "Connections overflow requires a visible scrollbar");
+      }
+      geometry[narrow(name)] = item;
       UpdateWindow(window);
       if (!captureWindowPNG(window, folder + L"\\" + name + L".png"))
         throw std::runtime_error("Screenshot capture failed");
@@ -2607,6 +2885,7 @@ static int visualTest(const std::wstring &folder) {
     connected = false;
     json report = {{"ok", true},
                    {"screenshots", shots},
+                   {"geometry", geometry},
                    {"dpi", uiDpi},
                    {"highContrast", highContrast},
                    {"reducedMotion", reducedMotion}};
@@ -2726,7 +3005,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR arguments, int show) {
     startOSC();
   MSG msg;
   while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
-    if (IsWindowVisible(settingsPanel) && IsDialogMessageW(settingsPanel, &msg))
+    if (IsWindowVisible(settingsPanel) &&
+        (msg.hwnd == settingsPanel || IsChild(settingsPanel, msg.hwnd)) &&
+        IsDialogMessageW(settingsPanel, &msg))
       continue;
     if (GetFocus() != canvas && IsDialogMessageW(mainWindow, &msg))
       continue;

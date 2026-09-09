@@ -6,7 +6,7 @@ Portlight by Studio Upgrade connects to Portlight Host on a Mac. It is a lightwe
 
 Keep `Portlight.exe` and `su-zerotier.exe` together. In **Connections**, choose a saved computer or enter its name/IP address and password, then select **Connect**. Verify the first connection's certificate fingerprint against Portlight Host. Passwords are never saved.
 
-**Advanced** contains the port (5920 by default) and optional ZeroTier network policy. A saved connection can activate its chosen network and pause only the network IDs explicitly listed under **Networks to pause**. Save the policy before using it. Disconnect restores the previous network state; Network Status also exposes interrupted-operation recovery.
+**Advanced** contains the port (5920 by default) and optional ZeroTier network policy. A saved connection can activate its chosen network and pause only the network IDs explicitly listed under **Networks to pause**. Use **Save connection** in Advanced to save the policy before using it. Cancel also works while the network is being prepared. Disconnect and closing the app wait for restoration of the previous network state; Network Status also exposes interrupted-operation recovery.
 
 After authentication, the computer's picture fills the window. The compact toolbar contains **Displays**, **Fit/zoom**, **Audio**, and **Settings**. The back button disconnects and returns to Connections. No computer addresses, password fields, or permanent settings sidebar appear over the viewing area.
 

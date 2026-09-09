@@ -186,9 +186,13 @@ static void drawFields(HWND parent, HDC dc) {
             GetFocus() == found->second ? palette.accent : palette.line, 12);
   }
 }
-static LRESULT controlColor(UINT msg, WPARAM wp, LPARAM) {
+static LRESULT controlColor(UINT msg, WPARAM wp, LPARAM lp) {
   HDC dc = (HDC)wp;
   SetTextColor(dc, palette.text);
+  if (msg == WM_CTLCOLORLISTBOX && GetDlgCtrlID((HWND)lp) == ID_SAVED_LIST) {
+    SetBkColor(dc, palette.card);
+    return (LRESULT)cardBrush;
+  }
   if (msg == WM_CTLCOLOREDIT || msg == WM_CTLCOLORLISTBOX) {
     SetBkColor(dc, palette.field);
     return (LRESULT)fieldBrush;
@@ -306,7 +310,7 @@ static void layoutConnections() {
   RECT r;
   GetClientRect(connectionsPage, &r);
   int width = MulDiv(r.right, 96, uiDpi);
-  int contentBottom = 144 + (advancedOpen ? 614 : 376);
+  int contentBottom = 144 + (advancedOpen ? 650 : 376);
   pageScroll = std::clamp(
       pageScroll, 0, std::max(0, contentBottom - MulDiv(r.bottom, 96, uiDpi)));
   int outer = std::max(24, (width - 900) / 2), area = std::min(900, width - 48);
@@ -314,7 +318,7 @@ static void layoutConnections() {
       rightWidth = area - leftWidth - gap, top = 144;
   savedCard = logicalRect(outer, top - pageScroll, leftWidth, 352);
   connectCard = logicalRect(rightX, top - pageScroll, rightWidth,
-                            advancedOpen ? 590 : 352);
+                            advancedOpen ? 626 : 352);
   place(controls[ID_SAVED_LIST], outer + 12, 192 - pageScroll, leftWidth - 24,
         232);
   SendMessageW(controls[ID_SAVED_LIST], LB_SETITEMHEIGHT, 0, px(68));
@@ -324,13 +328,15 @@ static void layoutConnections() {
   field(ID_PASSWORD, x, y + 176, w, 42);
   button(ID_CONNECT, x, y + 238, w, 42);
   button(ID_ADVANCED, x, y + 298, w, 32);
-  for (int id : {ID_PORT, ID_ZTNETWORK, ID_ZTMANAGED, ID_ZTSTATUS})
+  for (int id :
+       {ID_PORT, ID_ZTNETWORK, ID_ZTMANAGED, ID_ZTSTATUS, ID_CONNECTION_SAVE})
     ShowWindow(controls[id], advancedOpen ? SW_SHOW : SW_HIDE);
   if (advancedOpen) {
     field(ID_PORT, x, y + 384, 88, 42);
     field(ID_ZTNETWORK, x + 104, y + 384, w - 104, 42);
     field(ID_ZTMANAGED, x, y + 466, w, 42);
     button(ID_ZTSTATUS, x, y + 524, w, 36);
+    button(ID_CONNECTION_SAVE, x, y + 574, w, 36);
   }
   SCROLLINFO scroll{sizeof(scroll),
                     SIF_RANGE | SIF_PAGE | SIF_POS,
@@ -342,7 +348,7 @@ static void layoutConnections() {
   SetScrollInfo(connectionsPage, SB_VERT, &scroll, TRUE);
   if (statusLabel) {
     place(statusLabel, rightX + 24,
-          top + (advancedOpen ? 594 : 356) - pageScroll, rightWidth - 48, 36);
+          top + (advancedOpen ? 630 : 356) - pageScroll, rightWidth - 48, 36);
     ShowWindow(statusLabel, uiStatus.empty() ? SW_HIDE : SW_SHOW);
   }
   InvalidateRect(connectionsPage, nullptr, FALSE);
@@ -693,6 +699,8 @@ static void buildUI(HWND hwnd) {
       0, 0, 1, 1);
   add(connectionsPage, L"BUTTON", L"ZeroTier network status",
       BS_PUSHBUTTON | WS_TABSTOP, ID_ZTSTATUS, 0, 0, 1, 1);
+  add(connectionsPage, L"BUTTON", L"Save connection",
+      BS_PUSHBUTTON | WS_TABSTOP, ID_CONNECTION_SAVE, 0, 0, 1, 1);
   statusLabel = add(connectionsPage, L"STATIC", L"", 0, 0, 0, 0, 1, 1);
   add(settingsPanel, L"LISTBOX", L"", LBS_MULTIPLESEL | LBS_NOTIFY, ID_MONITORS,
       0, 0, 1, 1);
