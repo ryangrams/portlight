@@ -18,6 +18,7 @@
 #include <mmsystem.h>
 #include <mutex>
 #include <shlobj.h>
+#include <shellapi.h>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -29,7 +30,7 @@
 using json = nlohmann::json;
 static constexpr UINT WM_NET = WM_APP + 1, WM_FRAME = WM_APP + 2,
                       WM_OSC = WM_APP + 3;
-static constexpr int PANEL = 250, TOP = 44, FOOT = 26;
+static constexpr int TOP = 56;
 enum {
   ID_HOST = 100,
   ID_PASSWORD,
@@ -65,8 +66,7 @@ struct Surface {
   int width = 0, height = 0;
   std::vector<uint8_t> pixels;
 };
-static HWND mainWindow, canvas, statusLabel, sidebar;
-static int sidebarScroll = 0;
+static HWND mainWindow, canvas, statusLabel;
 static std::map<int, HWND> controls;
 static std::vector<Display> displays;
 static std::map<std::string, Surface> surfaces;
@@ -81,13 +81,17 @@ static int integrationStage = 0;
 static json integrationSubscriptions = json::array(),
             integrationFrames = json::object();
 static uint64_t integrationRejected = 0;
+static bool integrationConnectionsAtStart = false,
+            integrationViewingAfterAuth = false,
+            integrationConnectionsAfterDisconnect = false;
 struct NetworkBinary {
   uint64_t generation;
   std::vector<uint8_t> data;
 };
 static std::atomic<uint64_t> receivedBytes{0};
 static uint64_t previousBytes = 0, receivedFrames = 0, previousFrames = 0,
-                lastLatency = 0;
+                lastLatency = 0, currentUpdates = 0;
+static double currentKbps = 0;
 static std::mutex transportMutex;
 static HINTERNET webSocket = nullptr, activeRequest = nullptr,
                  activeConnection = nullptr, activeSession = nullptr;
@@ -107,6 +111,42 @@ static IWICImagingFactory *imaging = nullptr;
 static std::string remoteCursorDisplay;
 static double remoteCursorX = 0, remoteCursorY = 0;
 static std::atomic<uint64_t> connectGeneration{0};
+static const wchar_t *productName = L"Portlight";
+static HWND connectionsPage = nullptr, settingsPanel = nullptr,
+            tooltipWindow = nullptr;
+static HFONT fontBody = nullptr, fontSmall = nullptr, fontTitle = nullptr,
+             fontHero = nullptr, fontStrong = nullptr;
+static UINT uiDpi = 96;
+static bool darkTheme = false, highContrast = false, reducedMotion = false,
+            advancedOpen = false, visualMode = false;
+static int forcedTheme = -1;
+static int pageScroll = 0;
+static std::wstring connectionTitle = L"Connected", uiStatus = L"";
+struct Palette {
+  COLORREF page, card, field, text, secondary, line, accent, accentText, hover,
+      canvas;
+};
+static Palette palette{RGB(247, 248, 250), RGB(255, 255, 255),
+                       RGB(245, 246, 248), RGB(29, 32, 39),
+                       RGB(105, 111, 123), RGB(224, 228, 235),
+                       RGB(48, 105, 223),  RGB(255, 255, 255),
+                       RGB(237, 241, 247), RGB(232, 235, 240)};
+static HBRUSH pageBrush = nullptr, cardBrush = nullptr, fieldBrush = nullptr;
+static constexpr int ID_SAVED_LIST = 170, ID_NEW_CONNECTION = 171,
+                     ID_ADVANCED = 172, ID_PORT = 173, ID_DISPLAYS_MENU = 176,
+                     ID_ZOOM_MENU = 177, ID_AUDIO_TOOL = 178,
+                     ID_SETTINGS_TOOL = 179, ID_SETTINGS_DONE = 180,
+                     ID_BACK_CONNECTIONS = 181, ID_ALLOW_CONTROL = 182,
+                     ID_BANDWIDTH = 183;
+static std::map<int, RECT> fieldRects;
+static std::vector<std::string> savedNames;
+static RECT savedCard{}, connectCard{};
+static int px(int value) { return MulDiv(value, uiDpi, 96); }
+static void layout();
+static void refreshToolbar();
+static void refreshSavedConnections();
+static void applyTheme();
+static void openSettings();
 static std::wstring wide(const std::string &s) {
   if (s.empty())
     return {};
@@ -142,8 +182,15 @@ static void check(int id, bool value) {
                0);
 }
 static void status(const std::wstring &s) {
-  SetWindowTextW(statusLabel, s.c_str());
+  uiStatus = s;
+  if (statusLabel) {
+    SetWindowTextW(statusLabel, s.c_str());
+    ShowWindow(statusLabel, !connected && !s.empty() ? SW_SHOW : SW_HIDE);
+  }
+  if (connectionsPage)
+    InvalidateRect(connectionsPage, nullptr, FALSE);
 }
+
 static bool post(json msg) {
   if (stopping)
     return false;
@@ -266,6 +313,7 @@ static void updateScroll() {
   h.nPos = panY;
   SetScrollInfo(canvas, SB_VERT, &h, TRUE);
   InvalidateRect(canvas, nullptr, FALSE);
+  refreshToolbar();
 }
 static void sendSubscription(bool force = false) {
   (void)force;
@@ -384,7 +432,8 @@ static std::string certificateHash(PCCERT_CONTEXT cert) {
   DWORD n = 32;
   if (!CryptHashCertificate2(L"SHA256", 0, nullptr, cert->pbCertEncoded,
                              cert->cbCertEncoded, hash, &n))
-    throw std::runtime_error("Cannot fingerprint server certificate");
+    throw std::runtime_error(
+        "Cannot read the computer’s certificate fingerprint");
   std::ostringstream out;
   for (DWORD i = 0; i < n; i++) {
     if (i)
@@ -411,10 +460,10 @@ static bool trustCertificate(const std::string &host, const std::string &hash) {
                         : L"WARNING: The certificate changed for ") +
       wide(host) +
       L".\n\nConfirm this SHA-256 fingerprint against the one shown in the SU "
-      L"Remote server:\n\n" +
+      L"Portlight Host:\n\n" +
       wide(hash) +
       L"\n\nOnly trust it if the fingerprints match. Trust and connect?";
-  if (MessageBoxW(mainWindow, msg.c_str(), L"Verify SU Remote server",
+  if (MessageBoxW(mainWindow, msg.c_str(), L"Verify Portlight Host",
                   MB_YESNO | MB_DEFBUTTON2 |
                       (previous.empty() ? MB_ICONQUESTION : MB_ICONWARNING)) !=
       IDYES)
@@ -721,7 +770,7 @@ static void startConnection() {
     return;
   }
   if (controlText(ID_PASSWORD).empty()) {
-    status(L"Enter the server password before activating its network");
+    status(L"Enter the computer’s password before activating its network");
     SetFocus(controls[ID_PASSWORD]);
     return;
   }
@@ -738,7 +787,7 @@ static void startConnection() {
   if (!approved) {
     MessageBoxW(
         mainWindow,
-        L"Save this preset first to review its ZeroTier network policy.",
+        L"Save this connection first to review its ZeroTier network policy.",
         L"Review network policy", MB_OK | MB_ICONINFORMATION);
     return;
   }
@@ -766,7 +815,7 @@ struct Endpoint {
 };
 static Endpoint parseEndpoint(std::string address) {
   if (address.empty() || address.size() > 2048)
-    throw std::runtime_error("Invalid server address");
+    throw std::runtime_error("Invalid computer address");
   if (address.find("://") == std::string::npos)
     address = "https://" + address;
   else if (address.rfind("wss://", 0) == 0)
@@ -786,7 +835,7 @@ static Endpoint parseEndpoint(std::string address) {
                              "without credentials or query parameters");
   std::wstring path(u.lpszUrlPath ? u.lpszUrlPath : L"", u.dwUrlPathLength);
   if (!path.empty() && path != L"/" && path != L"/remote")
-    throw std::runtime_error("SU Remote uses the /remote endpoint");
+    throw std::runtime_error("Portlight uses the /remote endpoint");
   size_t start = address.find("://") + 3,
          end = address.find_first_of("/?#", start);
   std::string authority = address.substr(
@@ -797,6 +846,26 @@ static Endpoint parseEndpoint(std::string address) {
   return {std::wstring(u.lpszHostName, u.dwHostNameLength),
           explicitPort ? u.nPort : INTERNET_PORT(5920)};
 }
+static std::string connectionAddress() {
+  auto raw = narrow(controlText(ID_HOST));
+  if (!controls.count(ID_PORT))
+    return raw;
+  auto p = controlText(ID_PORT);
+  if (p.empty() || p == L"5920")
+    return raw;
+  try {
+    auto endpoint = parseEndpoint(raw);
+    int port = std::stoi(p);
+    if (port < 1 || port > 65535)
+      throw std::runtime_error("Port must be between1and65535");
+    auto host = narrow(endpoint.host);
+    if (host.find(':') != std::string::npos && host.front() != '[')
+      host = "[" + host + "]";
+    return host + ":" + std::to_string(port);
+  } catch (...) {
+    return raw;
+  }
+}
 static void connectNow() {
   if (connecting || connected) {
     releaseInput();
@@ -804,16 +873,28 @@ static void connectNow() {
     stopAudio();
     SetWindowTextW(controls[ID_CONNECT], L"Connect");
     status(L"Disconnected");
+    layout();
     return;
   }
-  std::string host = narrow(controlText(ID_HOST));
+  if (controls.count(ID_PORT)) {
+    try {
+      int port = std::stoi(controlText(ID_PORT));
+      if (port < 1 || port > 65535)
+        throw std::runtime_error("port");
+    } catch (...) {
+      status(L"Enter a port between 1 and 65535.");
+      SetFocus(controls[ID_PORT]);
+      return;
+    }
+  }
+  std::string host = connectionAddress();
   std::string password = narrow(controlText(ID_PASSWORD));
   if (host.empty()) {
     SetFocus(controls[ID_HOST]);
     return;
   }
   if (password.empty()) {
-    status(L"Enter the server password to connect");
+    status(L"Enter the computer’s password to connect");
     SetFocus(controls[ID_PASSWORD]);
     return;
   }
@@ -835,7 +916,7 @@ static void connectNow() {
       auto endpoint = parseEndpoint(host);
       std::wstring hostname = endpoint.host;
       INTERNET_PORT port = endpoint.port;
-      session = WinHttpOpen(L"SU Remote/0.1", WINHTTP_ACCESS_TYPE_NO_PROXY,
+      session = WinHttpOpen(L"Portlight/0.2", WINHTTP_ACCESS_TYPE_NO_PROXY,
                             nullptr, nullptr, 0);
       if (!session)
         throw std::runtime_error("Cannot initialize TLS transport");
@@ -857,14 +938,14 @@ static void connectNow() {
           !WinHttpSendRequest(request, nullptr, 0, nullptr, 0, 0, 0) ||
           !WinHttpReceiveResponse(request, nullptr))
         throw std::runtime_error(
-            "Server unavailable or TLS connection failed (" +
+            "Computer unavailable or secure connection failed (" +
             std::to_string(GetLastError()) + ")");
       PCCERT_CONTEXT cert = nullptr;
       DWORD bytes = sizeof(cert);
       if (!WinHttpQueryOption(request, WINHTTP_OPTION_SERVER_CERT_CONTEXT,
                               &cert, &bytes) ||
           !cert)
-        throw std::runtime_error("Server did not supply a certificate");
+        throw std::runtime_error("Computer did not supply a certificate");
       auto hash = certificateHash(cert);
       CertFreeCertificateContext(cert);
       std::string identity = narrow(hostname) + ":" + std::to_string(port);
@@ -878,7 +959,8 @@ static void connectNow() {
                           WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
                           nullptr, &code, &bytes, nullptr);
       if (code != 101)
-        throw std::runtime_error("Server did not accept WebSocket connection");
+        throw std::runtime_error(
+            "Computer did not accept the secure connection");
       socket = WinHttpWebSocketCompleteUpgrade(request, 0);
       if (!socket)
         throw std::runtime_error("WebSocket upgrade failed");
@@ -919,7 +1001,7 @@ static void connectNow() {
           break;
         receivedBytes += count;
         if (message.size() + count > 32 * 1024 * 1024)
-          throw std::runtime_error("Server exceeded message limit");
+          throw std::runtime_error("Computer exceeded the message limit");
         message.insert(message.end(), buffer.begin(), buffer.begin() + count);
         if (type == WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE) {
           try {
@@ -935,7 +1017,7 @@ static void connectNow() {
               throw std::runtime_error(
                   "Control message queue exceeded safety limit");
           } catch (...) {
-            throw std::runtime_error("Invalid server JSON");
+            throw std::runtime_error("The computer sent an invalid response");
           }
           message.clear();
         } else if (type == WINHTTP_WEB_SOCKET_BINARY_MESSAGE_BUFFER_TYPE) {
@@ -1015,13 +1097,13 @@ static void enforceResolution() {
     if (resolutionSupported(n))
       best = n;
   SendMessageW(controls[ID_RES], CB_SETCURSEL, best, 0);
-  status(L"Resolution adjusted to the selected monitor's native size");
+  status(L"Resolution adjusted to the selected display’s native size");
 }
 static void storePreset() {
   std::string name = narrow(controlText(ID_PRESETS));
   if (name.empty())
     name = "Default";
-  json p = {{"host", narrow(controlText(ID_HOST))},
+  json p = {{"host", connectionAddress()},
             {"displays", selection()},
             {"resolution", comboIndex(ID_RES)},
             {"color", comboIndex(ID_COLOR)},
@@ -1043,7 +1125,7 @@ static void storePreset() {
         controlText(ID_ZTMANAGED) +
         L"\n\nOnly explicitly listed networks may be suspended. Their previous "
         L"state will be restored after disconnect.";
-    if (MessageBoxW(mainWindow, msg.c_str(), L"Save ZeroTier preset",
+    if (MessageBoxW(mainWindow, msg.c_str(), L"Save ZeroTier connection",
                     MB_OKCANCEL | MB_DEFBUTTON2 | MB_ICONINFORMATION) != IDOK)
       return;
   }
@@ -1057,7 +1139,7 @@ static void storePreset() {
     SendMessageW(controls[ID_PRESETS], CB_ADDSTRING, 0,
                  (LPARAM)wide(name).c_str());
   SetWindowTextW(controls[ID_PRESETS], wide(name).c_str());
-  status(L"Preset saved — password stays in memory only");
+  status(L"Saved connection updated. Your password is not saved.");
 }
 static std::vector<std::string> pendingSelection;
 static void recallPreset(const std::string &name) {
@@ -1066,12 +1148,17 @@ static void recallPreset(const std::string &name) {
     std::lock_guard<std::mutex> lock(settingsMutex);
     auto presets = settings.value("presets", json::object());
     if (!presets.contains(name)) {
-      status(L"Preset not found");
+      status(L"Saved connection not found");
       return;
     }
     p = presets[name];
   }
   SetWindowTextW(controls[ID_HOST], wide(p.value("host", "")).c_str());
+  try {
+    auto endpoint = parseEndpoint(p.value("host", ""));
+    SetWindowTextW(controls[ID_PORT], std::to_wstring(endpoint.port).c_str());
+  } catch (...) {
+  }
   SetWindowTextW(controls[ID_PRESETS], wide(name).c_str());
   SendMessageW(controls[ID_RES], CB_SETCURSEL,
                std::clamp(p.value("resolution", 1), 0, 4), 0);
@@ -1102,7 +1189,7 @@ static void recallPreset(const std::string &name) {
   enforceResolution();
   updateScroll();
   sendSubscription();
-  status(L"Preset recalled");
+  status(L"Saved connection ready");
 }
 struct OSCCommand {
   std::string address;
@@ -1215,7 +1302,10 @@ static json publicState() {
           {"fullscreen", fullscreen},
           {"paused", checked(ID_PAUSE)},
           {"viewOnly", checked(ID_VIEWONLY)},
-          {"audio", checked(ID_AUDIO)}};
+          {"audio", checked(ID_AUDIO)},
+          {"bitrateKbps", currentKbps},
+          {"frameUpdates", currentUpdates},
+          {"latencyMs", lastLatency}};
 }
 static void handleOSC(const OSCCommand &c) {
   try {
@@ -1251,7 +1341,7 @@ static void handleOSC(const OSCCommand &c) {
       for (const auto &id : ids)
         if (std::none_of(displays.begin(), displays.end(),
                          [&](const Display &d) { return d.id == id; }))
-          throw std::runtime_error("Unknown monitor ID");
+          throw std::runtime_error("Unknown display ID");
       for (size_t i = 0; i < displays.size(); i++)
         SendMessageW(
             controls[ID_MONITORS], LB_SETSEL,
@@ -1270,7 +1360,7 @@ static void handleOSC(const OSCCommand &c) {
         throw std::runtime_error("Unknown option");
       int i = (int)(it - values.begin());
       if (p == "/su/remote/resolution" && !resolutionSupported(i))
-        throw std::runtime_error("Resolution exceeds selected monitor");
+        throw std::runtime_error("Resolution exceeds the selected display");
       SendMessageW(controls[p == "/su/remote/resolution" ? ID_RES : ID_COLOR],
                    CB_SETCURSEL, i, 0);
       resub = true;
@@ -1386,12 +1476,14 @@ static LRESULT CALLBACK canvasProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   switch (msg) {
   case WM_ERASEBKGND:
     return 1;
+  case WM_PRINTCLIENT:
   case WM_PAINT: {
-    PAINTSTRUCT ps;
-    HDC dc = BeginPaint(hwnd, &ps);
+    PAINTSTRUCT ps{};
+    bool printing = msg == WM_PRINTCLIENT;
+    HDC dc = printing ? (HDC)wp : BeginPaint(hwnd, &ps);
     RECT rc;
     GetClientRect(hwnd, &rc);
-    HBRUSH bg = CreateSolidBrush(RGB(18, 21, 26));
+    HBRUSH bg = CreateSolidBrush(palette.canvas);
     FillRect(dc, &rc, bg);
     DeleteObject(bg);
     SetStretchBltMode(dc, COLORONCOLOR);
@@ -1431,14 +1523,13 @@ static LRESULT CALLBACK canvasProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
       offset += slot.cx;
     }
     if (selected.empty() || !connected) {
-      SetTextColor(dc, RGB(180, 190, 200));
+      SetTextColor(dc, palette.secondary);
       SetBkMode(dc, TRANSPARENT);
-      std::wstring t = connected ? L"Select one or more monitors"
-                                 : L"SU Remote\nStudio Upgrade\n\nConnect to "
-                                   L"view and control your Mac.";
+      std::wstring t = L"Choose a display from the Displays menu";
       DrawTextW(dc, t.c_str(), -1, &rc, DT_CENTER | DT_VCENTER | DT_WORDBREAK);
     }
-    EndPaint(hwnd, &ps);
+    if (!printing)
+      EndPaint(hwnd, &ps);
     return 0;
   }
   case WM_SIZE:
@@ -1609,111 +1700,7 @@ static LRESULT CALLBACK canvasProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   }
   return DefWindowProcW(hwnd, msg, wp, lp);
 }
-static HWND add(HWND parent, const wchar_t *cls, const wchar_t *text,
-                DWORD style, int id, int x, int y, int w, int h) {
-  HWND c = CreateWindowExW(
-      (cls == std::wstring(L"EDIT") || cls == std::wstring(L"LISTBOX"))
-          ? WS_EX_CLIENTEDGE
-          : 0,
-      cls, text, WS_CHILD | WS_VISIBLE | style, x, y, w, h, parent,
-      (HMENU)(INT_PTR)id, GetModuleHandleW(nullptr), nullptr);
-  SendMessageW(c, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
-  if (id)
-    controls[id] = c;
-  return c;
-}
-static void label(const wchar_t *t, int y) {
-  add(mainWindow, L"STATIC", t, 0, 0, 12, y, 226, 18);
-}
-static void combo(int id, const std::vector<std::wstring> &items, int y,
-                  int sel, bool owner = false) {
-  add(mainWindow, L"COMBOBOX", L"",
-      CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL |
-          (owner ? CBS_OWNERDRAWFIXED | CBS_HASSTRINGS : 0),
-      id, 12, y, 226, 200);
-  for (auto &s : items)
-    SendMessageW(controls[id], CB_ADDSTRING, 0, (LPARAM)s.c_str());
-  SendMessageW(controls[id], CB_SETCURSEL, sel, 0);
-}
-static LRESULT CALLBACK sidebarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
-  if (msg == WM_COMMAND || msg == WM_DRAWITEM || msg == WM_MEASUREITEM)
-    return SendMessageW(mainWindow, msg, wp, lp);
-  if (msg == WM_SIZE) {
-    SCROLLINFO si{sizeof(si),
-                  SIF_RANGE | SIF_PAGE | SIF_POS,
-                  0,
-                  730,
-                  (UINT)HIWORD(lp),
-                  sidebarScroll,
-                  0};
-    SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
-    return 0;
-  }
-  if (msg == WM_VSCROLL || msg == WM_MOUSEWHEEL) {
-    SCROLLINFO si{};
-    si.cbSize = sizeof(si);
-    si.fMask = SIF_ALL;
-    GetScrollInfo(hwnd, SB_VERT, &si);
-    int next = sidebarScroll;
-    if (msg == WM_MOUSEWHEEL)
-      next -= GET_WHEEL_DELTA_WPARAM(wp) / WHEEL_DELTA * 40;
-    else
-      switch (LOWORD(wp)) {
-      case SB_LINEUP:
-        next -= 30;
-        break;
-      case SB_LINEDOWN:
-        next += 30;
-        break;
-      case SB_PAGEUP:
-        next -= (int)si.nPage;
-        break;
-      case SB_PAGEDOWN:
-        next += (int)si.nPage;
-        break;
-      case SB_THUMBTRACK:
-        next = si.nTrackPos;
-        break;
-      default:
-        return 0;
-      }
-    next = std::clamp(next, 0, std::max<int>(0, si.nMax - (int)si.nPage + 1));
-    int delta = sidebarScroll - next;
-    sidebarScroll = next;
-    ScrollWindowEx(hwnd, 0, delta, nullptr, nullptr, nullptr, nullptr,
-                   SW_SCROLLCHILDREN | SW_INVALIDATE | SW_ERASE);
-    si.fMask = SIF_POS;
-    si.nPos = next;
-    SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
-    return 0;
-  }
-  return DefWindowProcW(hwnd, msg, wp, lp);
-}
-static void layout() {
-  RECT r;
-  GetClientRect(mainWindow, &r);
-  ShowWindow(sidebar, fullscreen ? SW_HIDE : SW_SHOW);
-  for (int id : {ID_HOST, ID_PASSWORD, ID_CONNECT})
-    ShowWindow(controls[id], fullscreen ? SW_HIDE : SW_SHOW);
-  ShowWindow(statusLabel, fullscreen ? SW_HIDE : SW_SHOW);
-  if (fullscreen) {
-    MoveWindow(canvas, 0, 0, r.right, r.bottom, TRUE);
-    updateScroll();
-    return;
-  }
-  int hostW = std::max<int>(160, (r.right - 390) / 2);
-  MoveWindow(controls[ID_HOST], 12, 10, hostW, 24, TRUE);
-  MoveWindow(controls[ID_PASSWORD], 24 + hostW, 10,
-             std::max<int>(120, r.right - hostW - 140), 24, TRUE);
-  MoveWindow(controls[ID_CONNECT], r.right - 104, 9, 92, 26, TRUE);
-  MoveWindow(sidebar, 0, TOP, PANEL, std::max<int>(1, r.bottom - TOP - FOOT),
-             TRUE);
-  MoveWindow(canvas, PANEL, TOP, std::max<int>(1, r.right - PANEL),
-             std::max<int>(1, r.bottom - TOP - FOOT), TRUE);
-  MoveWindow(statusLabel, 8, r.bottom - FOOT + 4,
-             std::max<int>(1, r.right - 16), 22, TRUE);
-  updateScroll();
-}
+#include "ui.hpp"
 
 static void populateDisplays(const json &msg) {
   auto previously = selection();
@@ -1722,7 +1709,7 @@ static void populateDisplays(const json &msg) {
   displays.clear();
   SendMessageW(controls[ID_MONITORS], LB_RESETCONTENT, 0, 0);
   for (const auto &d : msg.value("displays", json::array())) {
-    Display v{d.value("id", ""), d.value("name", "Monitor"),
+    Display v{d.value("id", ""), d.value("name", "Display"),
               d.value("width", 0), d.value("height", 0)};
     if (v.id.empty() || v.id.size() > 256 || v.name.size() > 512 ||
         v.width <= 0 || v.height <= 0 || v.width > 32768 || v.height > 32768 ||
@@ -1809,10 +1796,19 @@ static void handleNetwork(const json &msg) {
     return;
   }
   if (type == "welcome") {
+    surfaces.clear();
+    remoteCursorDisplay.clear();
     connected = true;
     connecting = false;
     revision = 0;
     SetWindowTextW(controls[ID_CONNECT], L"Disconnect");
+    connectionTitle = wide(msg.value("serverName", currentHost));
+    uiStatus = L"";
+    layout();
+    if (integrationMode)
+      integrationViewingAfterAuth =
+          (GetWindowLongW(canvas, GWL_STYLE) & WS_VISIBLE) &&
+          !(GetWindowLongW(connectionsPage, GWL_STYLE) & WS_VISIBLE);
     populateDisplays(msg);
     bool audio = false;
     for (const auto &codec : msg.value("capabilities", json::object())
@@ -1862,12 +1858,13 @@ static void handleNetwork(const json &msg) {
       SetTimer(mainWindow, 2, 100, nullptr);
   } else if (type == "error") {
     if (integrationMode)
-      integrationFailure = msg.value("message", "Server error");
-    status(wide(msg.value("message", "Server error")));
+      integrationFailure = msg.value("message", "Computer error");
+    status(wide(msg.value("message", "Computer error")));
     if (msg.value("code", "") == "authentication") {
       closeTransport();
       restoreZeroTier();
       SetWindowTextW(controls[ID_CONNECT], L"Connect");
+      layout();
     }
   } else if (type == "disconnected") {
     if (integrationMode)
@@ -1878,6 +1875,7 @@ static void handleNetwork(const json &msg) {
     stopAudio();
     SetWindowTextW(controls[ID_CONNECT], L"Connect");
     status(wide(msg.value("message", "Disconnected")));
+    layout();
     InvalidateRect(canvas, nullptr, FALSE);
   } else if (type == "pong") {
     auto sent = msg.value("time", uint64_t(0));
@@ -1897,6 +1895,8 @@ static std::string testEnvironment(const wchar_t *name) {
 }
 static void writeIntegrationReport() {
   bool okay = integrationFailure.empty() && integrationStage == 2 &&
+              integrationConnectionsAtStart && integrationViewingAfterAuth &&
+              integrationConnectionsAfterDisconnect &&
               integrationFrames.value("fixture-1", uint64_t(0)) > 0 &&
               integrationFrames.value("fixture-3", uint64_t(0)) > 0 &&
               integrationFrames.value("fixture-2", uint64_t(0)) == 0;
@@ -1907,7 +1907,12 @@ static void writeIntegrationReport() {
                  {"rejectedFrames", integrationRejected},
                  {"subscriptions", integrationSubscriptions},
                  {"stage", integrationStage},
-                 {"error", integrationFailure}};
+                 {"error", integrationFailure},
+                 {"uiTransitions",
+                  {{"connectionsAtStart", integrationConnectionsAtStart},
+                   {"viewingAfterAuthentication", integrationViewingAfterAuth},
+                   {"connectionsAfterDisconnect",
+                    integrationConnectionsAfterDisconnect}}}};
   std::string output = report.dump(2) + "\n";
   if (!integrationReport.empty()) {
     std::ofstream f(wide(integrationReport).c_str(),
@@ -1935,114 +1940,62 @@ static void integrationTick() {
   }
   if (elapsed >= 7000) {
     KillTimer(mainWindow, 3);
+    if (connected || connecting)
+      startConnection();
+    integrationConnectionsAfterDisconnect =
+        (GetWindowLongW(connectionsPage, GWL_STYLE) & WS_VISIBLE) &&
+        !(GetWindowLongW(canvas, GWL_STYLE) & WS_VISIBLE);
     writeIntegrationReport();
     DestroyWindow(mainWindow);
   }
 }
 static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   switch (msg) {
-  case WM_CREATE: {
-    mainWindow = hwnd;
-    add(hwnd, L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, ID_HOST, 12, 10, 320,
-        24);
-    SendMessageW(controls[ID_HOST], EM_SETCUEBANNER, TRUE,
-                 (LPARAM)L"Mac address or hostname (port 5920)");
-    add(hwnd, L"EDIT", L"", WS_TABSTOP | ES_PASSWORD | ES_AUTOHSCROLL,
-        ID_PASSWORD, 340, 10, 200, 24);
-    SendMessageW(controls[ID_PASSWORD], EM_SETCUEBANNER, TRUE,
-                 (LPARAM)L"Server password");
-    add(hwnd, L"BUTTON", L"Connect", BS_PUSHBUTTON | WS_TABSTOP, ID_CONNECT,
-        550, 9, 92, 26);
-    label(L"MONITORS · select one or several", TOP + 10);
-    add(hwnd, L"LISTBOX", L"",
-        LBS_MULTIPLESEL | LBS_NOTIFY | WS_VSCROLL | WS_TABSTOP, ID_MONITORS, 12,
-        TOP + 30, 226, 112);
-    label(L"Transmission resolution", 196);
-    combo(ID_RES,
-          {L"HD · 1280 × 720", L"FHD · 1920 × 1080", L"QHD · 2560 × 1440",
-           L"UHD · 3840 × 2160", L"Native · no upscaling"},
-          216, 1, true);
-    label(L"Color", 249);
-    combo(ID_COLOR,
-          {L"Full color", L"16 shades of gray", L"256 colors",
-           L"16-bit color (RGB565)"},
-          268, 0);
-    label(L"Compression", 300);
-    combo(ID_QUALITY,
-          {L"Adaptive · desktop + motion", L"Desktop · sharp text",
-           L"Motion · lower bandwidth"},
-          320, 0);
-    add(hwnd, L"STATIC", L"FPS", 0, 0, 12, 356, 70, 18);
-    add(hwnd, L"STATIC", L"Cap (kbps, 0 = auto)", 0, 0, 90, 356, 148, 18);
-    add(hwnd, L"EDIT", L"15", WS_TABSTOP | ES_NUMBER, ID_FPS, 12, 375, 64, 24);
-    add(hwnd, L"EDIT", L"4000", WS_TABSTOP | ES_NUMBER, ID_CAP, 90, 375, 148,
-        24);
-    add(hwnd, L"BUTTON", L"Audio (192 kbps)", BS_AUTOCHECKBOX | WS_TABSTOP,
-        ID_AUDIO, 12, 407, 226, 22);
-    add(hwnd, L"BUTTON", L"Pause stream", BS_AUTOCHECKBOX | WS_TABSTOP,
-        ID_PAUSE, 12, 431, 112, 22);
-    add(hwnd, L"BUTTON", L"View only", BS_AUTOCHECKBOX | WS_TABSTOP,
-        ID_VIEWONLY, 126, 431, 112, 22);
-    add(hwnd, L"BUTTON", L"Fit", BS_PUSHBUTTON | WS_TABSTOP, ID_FIT, 12, 466,
-        36, 26);
-    add(hwnd, L"BUTTON", L"−", BS_PUSHBUTTON | WS_TABSTOP, ID_ZOUT, 53, 466, 26,
-        26);
-    add(hwnd, L"BUTTON", L"+", BS_PUSHBUTTON | WS_TABSTOP, ID_ZIN, 84, 466, 26,
-        26);
-    add(hwnd, L"BUTTON", L"100%", BS_PUSHBUTTON | WS_TABSTOP, ID_Z100, 115, 466,
-        48, 26);
-    add(hwnd, L"BUTTON", L"Fullscreen", BS_PUSHBUTTON | WS_TABSTOP, ID_FULL,
-        168, 466, 70, 26);
-    add(hwnd, L"BUTTON", L"Pan by following pointer",
-        BS_AUTOCHECKBOX | WS_TABSTOP, ID_FOLLOW, 12, 501, 226, 22);
-    label(L"Saved connection / view preset", 534);
-    add(hwnd, L"COMBOBOX", L"Default", CBS_DROPDOWN | WS_VSCROLL | WS_TABSTOP,
-        ID_PRESETS, 12, 554, 142, 200);
-    if (settings.contains("presets") && settings["presets"].is_object())
-      for (auto it = settings["presets"].begin();
-           it != settings["presets"].end(); ++it)
-        SendMessageW(controls[ID_PRESETS], CB_ADDSTRING, 0,
-                     (LPARAM)wide(it.key()).c_str());
-    SetWindowTextW(controls[ID_PRESETS], L"Default");
-    add(hwnd, L"BUTTON", L"Save", BS_PUSHBUTTON | WS_TABSTOP, ID_SAVE, 160, 553,
-        78, 25);
-    add(hwnd, L"BUTTON", L"Recall preset", BS_PUSHBUTTON | WS_TABSTOP, ID_LOAD,
-        12, 585, 226, 25);
-    label(L"ZeroTier required network (optional)", 623);
-    add(hwnd, L"EDIT", L"", ES_AUTOHSCROLL | WS_TABSTOP, ID_ZTNETWORK, 12, 642,
-        226, 24);
-    label(L"Exclusive managed IDs (comma-separated)", 675);
-    add(hwnd, L"EDIT", L"", ES_AUTOHSCROLL | WS_TABSTOP, ID_ZTMANAGED, 12, 694,
-        226, 24);
-    add(hwnd, L"BUTTON", L"ZeroTier network status", BS_PUSHBUTTON | WS_TABSTOP,
-        ID_ZTSTATUS, 12, 727, 226, 26);
-    sidebar =
-        CreateWindowExW(WS_EX_CONTROLPARENT, L"SURemoteSidebar", L"",
-                        WS_CHILD | WS_VISIBLE | WS_VSCROLL, 0, TOP, PANEL, 730,
-                        hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
-    std::vector<HWND> children;
-    for (HWND child = GetWindow(hwnd, GW_CHILD); child;
-         child = GetWindow(child, GW_HWNDNEXT))
-      if (child != sidebar && child != controls[ID_HOST] &&
-          child != controls[ID_PASSWORD] && child != controls[ID_CONNECT])
-        children.push_back(child);
-    for (HWND child : children) {
-      RECT cr;
-      GetWindowRect(child, &cr);
-      MapWindowPoints(nullptr, hwnd, (POINT *)&cr, 2);
-      SetParent(child, sidebar);
-      MoveWindow(child, cr.left, cr.top - TOP, cr.right - cr.left,
-                 cr.bottom - cr.top, TRUE);
+  case WM_CREATE:
+    buildUI(hwnd);
+    return 0;
+  case WM_ERASEBKGND:
+    return 1;
+  case WM_PRINTCLIENT:
+  case WM_PAINT: {
+    PAINTSTRUCT ps{};
+    bool printing = msg == WM_PRINTCLIENT;
+    HDC dc = printing ? (HDC)wp : BeginPaint(hwnd, &ps);
+    RECT r;
+    GetClientRect(hwnd, &r);
+    fill(dc, r, palette.page);
+    if (connected && !fullscreen) {
+      RECT bar{0, 0, r.right, px(TOP)};
+      fill(dc, bar, palette.card);
+      textAt(dc, connectionTitle,
+             logicalRect(68, 9, std::max(80, MulDiv(r.right, 96, uiDpi) - 550),
+                         22),
+             fontStrong, palette.text, DT_SINGLELINE | DT_END_ELLIPSIS);
+      textAt(dc, L"Connected", logicalRect(68, 31, 260, 18), fontSmall,
+             palette.secondary);
     }
-    canvas = CreateWindowExW(
-        0, L"SURemoteCanvas", L"",
-        WS_CHILD | WS_VISIBLE | WS_HSCROLL | WS_VSCROLL | WS_TABSTOP, PANEL,
-        TOP, 400, 400, hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
-    statusLabel =
-        add(hwnd, L"STATIC", L"Ready · OSC localhost:19790 · F11 fullscreen", 0,
-            0, 8, 760, 500, 22);
-    SetTimer(hwnd, 1, 1000, nullptr);
+    if (!printing)
+      EndPaint(hwnd, &ps);
+    return 0;
+  }
+  case WM_CTLCOLORSTATIC:
+  case WM_CTLCOLOREDIT:
+  case WM_CTLCOLORLISTBOX:
+  case WM_CTLCOLORBTN:
+    return controlColor(msg, wp, lp);
+  case WM_SETTINGCHANGE:
+  case WM_THEMECHANGED:
+    applyTheme();
     layout();
+    return 0;
+  case WM_DPICHANGED: {
+    uiDpi = HIWORD(wp);
+    RECT *r = (RECT *)lp;
+    SetWindowPos(hwnd, nullptr, r->left, r->top, r->right - r->left,
+                 r->bottom - r->top, SWP_NOZORDER | SWP_NOACTIVATE);
+    applyTheme();
+    layout();
+    layoutSettings();
     return 0;
   }
   case WM_SIZE:
@@ -2053,11 +2006,66 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
       sendSubscription();
     return 0;
   case WM_GETMINMAXINFO:
-    ((MINMAXINFO *)lp)->ptMinTrackSize = {720, 480};
+    ((MINMAXINFO *)lp)->ptMinTrackSize = {px(720), px(480)};
     return 0;
   case WM_COMMAND: {
     int id = LOWORD(wp), code = HIWORD(wp);
-    if (id == ID_CONNECT && code == BN_CLICKED)
+    if (id == IDCANCEL && IsWindowVisible(settingsPanel)) {
+      ShowWindow(settingsPanel, SW_HIDE);
+      SetFocus(canvas);
+    } else if (id == IDOK && IsWindowVisible(settingsPanel)) {
+      ShowWindow(settingsPanel, SW_HIDE);
+      SetFocus(canvas);
+    } else if (id == IDOK && !connected)
+      startConnection();
+    else if (id == ID_ADVANCED) {
+      advancedOpen = !advancedOpen;
+      SetWindowTextW(controls[id],
+                     advancedOpen ? L"Advanced  ▴" : L"Advanced  ▾");
+      layoutConnections();
+    } else if (id == ID_NEW_CONNECTION) {
+      SetWindowTextW(controls[ID_HOST], L"");
+      SetWindowTextW(controls[ID_PASSWORD], L"");
+      SetWindowTextW(controls[ID_PORT], L"5920");
+      SetWindowTextW(controls[ID_ZTNETWORK], L"");
+      SetWindowTextW(controls[ID_ZTMANAGED], L"");
+      SetWindowTextW(controls[ID_PRESETS], L"New connection");
+      SetFocus(controls[ID_HOST]);
+    } else if (id == ID_SAVED_LIST && code == LBN_SELCHANGE) {
+      int index = (int)SendMessageW(controls[id], LB_GETCURSEL, 0, 0);
+      if (index >= 0 && index < (int)savedNames.size()) {
+        recallPreset(savedNames[index]);
+        SetFocus(controls[ID_PASSWORD]);
+      }
+    } else if (id == ID_DISPLAYS_MENU)
+      showDisplaysMenu();
+    else if (id == ID_ZOOM_MENU)
+      showZoomMenu();
+    else if (id == ID_SETTINGS_TOOL)
+      openSettings();
+    else if (id == ID_SETTINGS_DONE) {
+      ShowWindow(settingsPanel, SW_HIDE);
+      SetFocus(canvas);
+    } else if (id == ID_ALLOW_CONTROL) {
+      check(ID_VIEWONLY, !checked(ID_ALLOW_CONTROL));
+      SendMessageW(hwnd, WM_COMMAND, MAKEWPARAM(ID_VIEWONLY, BN_CLICKED), 0);
+    } else if (id == ID_BANDWIDTH && code == EN_KILLFOCUS) {
+      double mbps = 0;
+      try {
+        mbps = std::stod(controlText(ID_BANDWIDTH));
+      } catch (...) {
+      }
+      int kbps = std::clamp((int)std::round(mbps * 1000), 0, 100000);
+      SetWindowTextW(controls[ID_CAP], std::to_wstring(kbps).c_str());
+      sendSubscription();
+    } else if (id == ID_AUDIO_TOOL) {
+      check(ID_AUDIO, !checked(ID_AUDIO));
+      SendMessageW(hwnd, WM_COMMAND, MAKEWPARAM(ID_AUDIO, BN_CLICKED), 0);
+    } else if (id == ID_BACK_CONNECTIONS) {
+      if (connected || connecting)
+        startConnection();
+      layout();
+    } else if (id == ID_CONNECT && code == BN_CLICKED)
       startConnection();
     else if (id == ID_MONITORS && code == LBN_SELCHANGE) {
       releaseAll();
@@ -2105,34 +2113,80 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
       toggleFullscreen(!fullscreen);
     else if (id == ID_FOLLOW)
       follow = checked(ID_FOLLOW);
-    else if (id == ID_SAVE)
+    else if (id == ID_SAVE) {
       storePreset();
-    else if (id == ID_LOAD)
+      refreshSavedConnections();
+    } else if (id == ID_LOAD)
       recallPreset(narrow(controlText(ID_PRESETS)));
     else if (id == ID_ZTSTATUS)
       zeroTierOperation({{"action", "status"}}, "status");
+    refreshToolbar();
     return 0;
   }
   case WM_MEASUREITEM:
-    ((MEASUREITEMSTRUCT *)lp)->itemHeight = 22;
+    if (((MEASUREITEMSTRUCT *)lp)->CtlType == ODT_MENU) {
+      auto *m = (MEASUREITEMSTRUCT *)lp;
+      m->itemHeight = px(36);
+      m->itemWidth = px(300);
+      return TRUE;
+    }
+    ((MEASUREITEMSTRUCT *)lp)->itemHeight =
+        px(((MEASUREITEMSTRUCT *)lp)->CtlID == ID_SAVED_LIST ? 68 : 30);
     return TRUE;
   case WM_DRAWITEM: {
     auto *d = (DRAWITEMSTRUCT *)lp;
-    if (d->CtlID != ID_RES || d->itemID == (UINT)-1)
+    if (d->CtlType == ODT_MENU) {
+      bool selected = d->itemState & ODS_SELECTED;
+      fill(d->hDC, d->rcItem, selected ? palette.hover : palette.card);
+      RECT r = d->rcItem;
+      r.left += px(36);
+      textAt(d->hDC, *(const std::wstring *)d->itemData, r, fontBody,
+             palette.text, DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+      if (d->itemState & ODS_CHECKED) {
+        r = d->rcItem;
+        r.right = r.left + px(30);
+        textAt(d->hDC, L"✓", r, fontBody, palette.accent,
+               DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+      }
+      return TRUE;
+    }
+    if (d->itemID == (UINT)-1)
+      return TRUE;
+    if (d->CtlID == ID_SAVED_LIST) {
+      if (d->itemID >= savedNames.size())
+        return TRUE;
+      RECT r = d->rcItem;
+      fill(d->hDC, r, palette.card);
+      bool selected = d->itemState & ODS_SELECTED;
+      RECT card = r;
+      InflateRect(&card, -px(2), -px(3));
+      if (selected)
+        rounded(d->hDC, card, palette.hover, palette.hover, 12);
+      auto name = savedNames[d->itemID];
+      std::string host = settings.value("presets", json::object())
+                             .value(name, json::object())
+                             .value("host", "");
+      r.left += px(14);
+      r.top += px(10);
+      textAt(d->hDC, wide(name), r, fontStrong, palette.text,
+             DT_SINGLELINE | DT_END_ELLIPSIS);
+      r.top += px(24);
+      textAt(d->hDC, wide(host), r, fontSmall, palette.secondary,
+             DT_SINGLELINE | DT_END_ELLIPSIS);
+      return TRUE;
+    }
+    if (d->CtlID != ID_RES && d->CtlID != ID_COLOR && d->CtlID != ID_QUALITY)
       break;
     wchar_t text[256]{};
-    SendMessageW(controls[ID_RES], CB_GETLBTEXT, d->itemID, (LPARAM)text);
+    SendMessageW(controls[d->CtlID], CB_GETLBTEXT, d->itemID, (LPARAM)text);
     bool selected = (d->itemState & ODS_SELECTED) != 0,
-         supported = resolutionSupported((int)d->itemID);
-    FillRect(d->hDC, &d->rcItem,
-             GetSysColorBrush(selected ? COLOR_HIGHLIGHT : COLOR_WINDOW));
-    SetBkMode(d->hDC, TRANSPARENT);
-    SetTextColor(d->hDC, GetSysColor(!supported ? COLOR_GRAYTEXT
-                                     : selected ? COLOR_HIGHLIGHTTEXT
-                                                : COLOR_WINDOWTEXT));
+         supported = d->CtlID != ID_RES || resolutionSupported((int)d->itemID);
+    fill(d->hDC, d->rcItem, selected ? palette.hover : palette.field);
     RECT r = d->rcItem;
-    r.left += 4;
-    DrawTextW(d->hDC, text, -1, &r, DT_SINGLELINE | DT_VCENTER);
+    r.left += px(12);
+    textAt(d->hDC, text, r, fontBody,
+           supported ? palette.text : palette.secondary,
+           DT_SINGLELINE | DT_VCENTER);
     return TRUE;
   }
   case WM_NET: {
@@ -2141,7 +2195,7 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     try {
       handleNetwork(*p);
     } catch (...) {
-      status(L"Invalid server response");
+      status(L"Invalid computer response");
     }
     return 0;
   }
@@ -2167,17 +2221,11 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
       sendSubscription();
     } else if (wp == 1 && connected) {
       uint64_t bytes = receivedBytes.load(), frames = receivedFrames;
-      double kbps = (bytes - previousBytes) * 8 / 1000.;
-      uint64_t updates = frames - previousFrames;
+      currentKbps = (bytes - previousBytes) * 8 / 1000.;
+      currentUpdates = frames - previousFrames;
       previousBytes = bytes;
       previousFrames = frames;
-      std::wostringstream t;
-      t << L"Connected · " << std::fixed << std::setprecision(0) << kbps
-        << L" kbps · " << updates << L" updates/s · " << lastLatency
-        << L" ms · " << selection().size() << L" monitor(s) · "
-        << (int)(zoom * 100) << L"% · " << wide(resolutionName())
-        << L" · OSC 19790";
-      status(t.str());
+      refreshToolbar();
       sendMessage({{"type", "ping"}, {"time", GetTickCount64()}});
     }
     return 0;
@@ -2314,7 +2362,7 @@ static int selfTest() {
     test("mixed-aspect pointer map after zoom/pan",
          mapPointer(1340, 270, id, nx, ny) && id == "portrait" &&
              std::abs(nx - .5) < .001 && std::abs(ny - .5) < .001);
-    test("letterbox never targets remote monitor",
+    test("letterbox never targets a remote display",
          !mapPointer(900, 270, id, nx, ny));
     test("common resolution constrained by smallest source",
          resolutionSupported(1) && !resolutionSupported(2) &&
@@ -2339,6 +2387,21 @@ static int selfTest() {
     test("decoded dimensions must match metadata",
          !decodeImage(pixels.data(), pixels.size(), f));
     test("corrupt image rejected", !decodeImage((const uint8_t *)"bad", 3, f));
+    const char *grayPNG = "iVBORw0KGgoAAAANSUhEUgAAAAQAAAABBAAAAAAZp70QAAAAC0lE"
+                          "QVR4nGNgXQ8AALwAtYJBgpwAAAAASUVORK5CYII=";
+    DWORD graySize = 0;
+    CryptStringToBinaryA(grayPNG, 0, CRYPT_STRING_BASE64, nullptr, &graySize,
+                         nullptr, nullptr);
+    std::vector<uint8_t> grayBytes(graySize);
+    CryptStringToBinaryA(grayPNG, 0, CRYPT_STRING_BASE64, grayBytes.data(),
+                         &graySize, nullptr, nullptr);
+    Frame gray;
+    gray.w = 4;
+    gray.h = 1;
+    test("native 4-bit grayscale PNG exact pixels",
+         decodeImage(grayBytes.data(), grayBytes.size(), gray) &&
+             gray.pixels[0] == 0 && gray.pixels[4] == 85 &&
+             gray.pixels[8] == 170 && gray.pixels[12] == 255);
     std::string result = json{{"ok", true}, {"tests", tests}}.dump() + "\n";
     DWORD n = 0;
     WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), result.data(),
@@ -2354,16 +2417,234 @@ static int selfTest() {
     return 1;
   }
 }
+static bool captureWindowPNG(HWND window, const std::wstring &path) {
+  RECT bounds;
+  GetWindowRect(window, &bounds);
+  int width = bounds.right - bounds.left, height = bounds.bottom - bounds.top;
+  HDC source = GetWindowDC(window), memory = CreateCompatibleDC(source);
+  HBITMAP bitmap = CreateCompatibleBitmap(source, width, height);
+  auto old = SelectObject(memory, bitmap);
+  RedrawWindow(window, nullptr, nullptr,
+               RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+  BOOL painted = PrintWindow(window, memory, 2);
+  if (!painted)
+    painted = BitBlt(memory, 0, 0, width, height, source, 0, 0, SRCCOPY);
+  SelectObject(memory, old);
+  DeleteDC(memory);
+  ReleaseDC(window, source);
+  IWICBitmap *image = nullptr;
+  IWICStream *stream = nullptr;
+  IWICBitmapEncoder *encoder = nullptr;
+  IWICBitmapFrameEncode *frame = nullptr;
+  IPropertyBag2 *properties = nullptr;
+  HRESULT hr = painted ? imaging->CreateBitmapFromHBITMAP(
+                             bitmap, nullptr, WICBitmapIgnoreAlpha, &image)
+                       : E_FAIL;
+  if (SUCCEEDED(hr))
+    hr = imaging->CreateStream(&stream);
+  if (SUCCEEDED(hr))
+    hr = stream->InitializeFromFilename(path.c_str(), GENERIC_WRITE);
+  if (SUCCEEDED(hr))
+    hr = imaging->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder);
+  if (SUCCEEDED(hr))
+    hr = encoder->Initialize(stream, WICBitmapEncoderNoCache);
+  if (SUCCEEDED(hr))
+    hr = encoder->CreateNewFrame(&frame, &properties);
+  if (SUCCEEDED(hr))
+    hr = frame->Initialize(properties);
+  if (SUCCEEDED(hr))
+    hr = frame->SetSize(width, height);
+  WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGRA;
+  if (SUCCEEDED(hr))
+    hr = frame->SetPixelFormat(&format);
+  if (SUCCEEDED(hr))
+    hr = frame->WriteSource(image, nullptr);
+  if (SUCCEEDED(hr))
+    hr = frame->Commit();
+  if (SUCCEEDED(hr))
+    hr = encoder->Commit();
+  if (properties)
+    properties->Release();
+  if (frame)
+    frame->Release();
+  if (encoder)
+    encoder->Release();
+  if (stream)
+    stream->Release();
+  if (image)
+    image->Release();
+  DeleteObject(bitmap);
+  return SUCCEEDED(hr);
+}
+static void visualDesktop() {
+  displays = {{"visual-1", "Studio display", 1920, 1080},
+              {"visual-2", "Preview display", 1920, 1080}};
+  SendMessageW(controls[ID_MONITORS], LB_RESETCONTENT, 0, 0);
+  for (auto &d : displays)
+    SendMessageW(controls[ID_MONITORS], LB_ADDSTRING, 0,
+                 (LPARAM)wide(d.name).c_str());
+  SendMessageW(controls[ID_MONITORS], LB_SETSEL, TRUE, 0);
+  auto &s = surfaces["visual-1"];
+  s.width = 1920;
+  s.height = 1080;
+  s.pixels.resize(1920 * 1080 * 4);
+  HDC screen = GetDC(nullptr), dc = CreateCompatibleDC(screen);
+  BITMAPINFO bi{};
+  bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  bi.bmiHeader.biWidth = 1920;
+  bi.bmiHeader.biHeight = -1080;
+  bi.bmiHeader.biPlanes = 1;
+  bi.bmiHeader.biBitCount = 32;
+  bi.bmiHeader.biCompression = BI_RGB;
+  void *bits = nullptr;
+  HBITMAP b = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
+  auto old = SelectObject(dc, b);
+  RECT r{0, 0, 1920, 1080};
+  fill(dc, r, RGB(22, 27, 35));
+  fill(dc, RECT{0, 0, 1920, 70}, RGB(32, 38, 48));
+  HFONT heading =
+            CreateFontW(-26, 0, 0, 0, 600, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+                        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                        ANTIALIASED_QUALITY, DEFAULT_PITCH, L"Segoe UI"),
+        body =
+            CreateFontW(-20, 0, 0, 0, 400, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+                        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                        ANTIALIASED_QUALITY, DEFAULT_PITCH, L"Segoe UI");
+  textAt(dc, L"Studio workspace", RECT{30, 20, 800, 55}, heading,
+         RGB(235, 241, 251));
+  textAt(dc, L"Live production", RECT{1630, 22, 1880, 55}, body,
+         RGB(155, 170, 189));
+  fill(dc, RECT{28, 100, 1300, 775}, RGB(13, 18, 28));
+  for (int y = 140; y < 730; y++) {
+    int shade = (y - 140) * 50 / 590;
+    fill(dc, RECT{70, y, 1258, y + 1},
+         RGB(26 + shade / 2, 48 + shade, 66 + shade));
+  }
+  textAt(dc, L"PROGRAM PREVIEW", RECT{100, 165, 800, 210}, body,
+         RGB(150, 176, 201));
+  textAt(dc, L"Your story, on screen.", RECT{210, 415, 1120, 500}, heading,
+         RGB(236, 242, 250));
+  fill(dc, RECT{1330, 100, 1890, 775}, RGB(31, 38, 49));
+  textAt(dc, L"Audio mixer", RECT{1360, 128, 1840, 180}, heading,
+         RGB(235, 241, 251));
+  for (int i = 0; i < 6; i++) {
+    RECT meter{1370 + i * 80, 230, 1404 + i * 80, 660};
+    fill(dc, meter, RGB(18, 23, 31));
+    meter.top = 300 + (i % 3) * 65;
+    fill(dc, meter, RGB(65, 174, 124));
+    textAt(dc, L"CH " + std::to_wstring(i + 1),
+           RECT{1350 + i * 80, 685, 1430 + i * 80, 720}, body,
+           RGB(162, 177, 195));
+  }
+  fill(dc, RECT{28, 810, 1890, 1050}, RGB(31, 38, 49));
+  textAt(dc, L"Timeline", RECT{58, 840, 600, 880}, heading, RGB(230, 236, 246));
+  for (int i = 0; i < 8; i++) {
+    RECT clip{58 + i * 221, 908, 261 + i * 221, 1000};
+    fill(dc, clip, i % 2 ? RGB(63, 94, 123) : RGB(69, 105, 105));
+  }
+  memcpy(s.pixels.data(), bits, s.pixels.size());
+  SelectObject(dc, old);
+  DeleteObject(b);
+  DeleteObject(heading);
+  DeleteObject(body);
+  DeleteDC(dc);
+  ReleaseDC(nullptr, screen);
+}
+static int visualTest(const std::wstring &folder) {
+  CreateDirectoryW(folder.c_str(), nullptr);
+  json shots = json::array();
+  try {
+    settings["presets"] = {
+        {"Studio Mac",
+         {{"host", "studio-mac.local"}, {"displays", json::array()}}},
+        {"Edit suite",
+         {{"host", "edit-suite.local"}, {"displays", json::array()}}}};
+    refreshSavedConnections();
+    SetWindowTextW(controls[ID_HOST], L"studio-mac.local");
+    SetWindowTextW(controls[ID_PASSWORD], L"");
+    auto shot = [&](const std::wstring &name, HWND window) {
+      UpdateWindow(window);
+      if (!captureWindowPNG(window, folder + L"\\" + name + L".png"))
+        throw std::runtime_error("Screenshot capture failed");
+      shots.push_back(narrow(name) + ".png");
+    };
+    for (int theme = 0; theme < 2; theme++) {
+      forcedTheme = theme;
+      applyTheme();
+      std::wstring suffix = theme ? L"dark" : L"light";
+      connected = false;
+      connecting = false;
+      fullscreen = false;
+      advancedOpen = false;
+      pageScroll = 0;
+      uiStatus.clear();
+      SetWindowTextW(statusLabel, L"");
+      SetWindowTextW(controls[ID_CONNECT], L"Connect");
+      ShowWindow(settingsPanel, SW_HIDE);
+      SetWindowPos(mainWindow, HWND_TOP, 40, 40, px(740), px(560),
+                   SWP_SHOWWINDOW);
+      layout();
+      shot(L"connections-" + suffix, mainWindow);
+      SetWindowPos(mainWindow, nullptr, 40, 40, px(720), px(480), SWP_NOZORDER);
+      layout();
+      shot(L"connections-" + suffix + L"-small", mainWindow);
+      connected = true;
+      connectionTitle = L"Studio Mac";
+      fit = true;
+      panX = panY = 0;
+      visualDesktop();
+      SetWindowPos(mainWindow, HWND_TOP, 40, 40, px(1100), px(760),
+                   SWP_SHOWWINDOW);
+      layout();
+      shot(L"viewing-" + suffix, mainWindow);
+      openSettings();
+      shot(L"settings-" + suffix, settingsPanel);
+      ShowWindow(settingsPanel, SW_HIDE);
+      SetWindowPos(mainWindow, nullptr, 40, 40, px(720), px(480), SWP_NOZORDER);
+      layout();
+      shot(L"viewing-" + suffix + L"-small", mainWindow);
+    }
+    connected = false;
+    json report = {{"ok", true},
+                   {"screenshots", shots},
+                   {"dpi", uiDpi},
+                   {"highContrast", highContrast},
+                   {"reducedMotion", reducedMotion}};
+    std::ofstream out((folder + L"\\visual-report.json").c_str());
+    out << report.dump(2);
+    std::string text = report.dump() + "\n";
+    DWORD written;
+    WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), text.data(), (DWORD)text.size(),
+              &written, nullptr);
+    return 0;
+  } catch (const std::exception &e) {
+    connected = false;
+    std::ofstream out((folder + L"\\visual-report.json").c_str());
+    out << json{{"ok", false}, {"error", e.what()}}.dump();
+    return 1;
+  }
+}
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR arguments, int show) {
+  visualMode =
+      arguments && std::wstring(arguments).rfind(L"--visual-test", 0) == 0;
   integrationMode =
       arguments && std::wstring(arguments) == L"--integration-test";
-  SetProcessDPIAware();
+  using DpiFn = BOOL(WINAPI *)(HANDLE);
+  auto setDpi = (DpiFn)GetProcAddress(GetModuleHandleW(L"user32.dll"),
+                                      "SetProcessDpiAwarenessContext");
+  if (setDpi)
+    setDpi((HANDLE)-4);
+  else
+    SetProcessDPIAware();
+  HDC screen = GetDC(nullptr);
+  uiDpi = GetDeviceCaps(screen, LOGPIXELSX);
+  ReleaseDC(nullptr, screen);
   CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
   CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
                    IID_PPV_ARGS(&imaging));
   INITCOMMONCONTROLSEX cc{sizeof(cc), ICC_STANDARD_CLASSES};
   InitCommonControlsEx(&cc);
-  if (!integrationMode &&
+  if (!integrationMode && !visualMode &&
       !(arguments && std::wstring(arguments) == L"--self-test"))
     loadSettings();
   WNDCLASSEXW wc{};
@@ -2371,23 +2652,39 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR arguments, int show) {
   wc.lpfnWndProc = windowProc;
   wc.hInstance = instance;
   wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-  wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+  wc.hIcon = (HICON)LoadImageW(instance, MAKEINTRESOURCEW(101), IMAGE_ICON,
+                               px(32), px(32), 0);
   wc.hbrBackground = GetSysColorBrush(COLOR_BTNFACE);
   wc.lpszClassName = L"SURemoteViewer";
   RegisterClassExW(&wc);
-  wc.lpfnWndProc = sidebarProc;
-  wc.lpszClassName = L"SURemoteSidebar";
+  wc.lpfnWndProc = pageProc;
+  wc.lpszClassName = L"SURemoteConnections";
+  RegisterClassExW(&wc);
+  wc.lpfnWndProc = settingsProc;
+  wc.lpszClassName = L"SURemoteSettings";
   RegisterClassExW(&wc);
   wc.lpfnWndProc = canvasProc;
   wc.hbrBackground = nullptr;
   wc.lpszClassName = L"SURemoteCanvas";
   RegisterClassExW(&wc);
-  mainWindow =
-      CreateWindowExW(0, L"SURemoteViewer", L"SU Remote — Studio Upgrade",
-                      WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1280,
-                      860, nullptr, nullptr, instance, nullptr);
+  mainWindow = CreateWindowExW(
+      0, L"SURemoteViewer", productName, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT,
+      CW_USEDEFAULT, px(740), px(560), nullptr, nullptr, instance, nullptr);
   if (!mainWindow)
     return 1;
+  if (visualMode) {
+    int count = 0;
+    LPWSTR *args = CommandLineToArgvW(GetCommandLineW(), &count);
+    std::wstring folder = count >= 3 ? args[2] : L"visuals";
+    LocalFree(args);
+    ShowWindow(mainWindow, SW_SHOW);
+    int result = visualTest(folder);
+    DestroyWindow(mainWindow);
+    if (imaging)
+      imaging->Release();
+    CoUninitialize();
+    return result;
+  }
   if (arguments && std::wstring(arguments) == L"--self-test") {
     int result = selfTest();
     DestroyWindow(mainWindow);
@@ -2412,6 +2709,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR arguments, int show) {
             "and fixture password");
       SetWindowTextW(controls[ID_HOST], wide(host).c_str());
       SetWindowTextW(controls[ID_PASSWORD], wide(password).c_str());
+      integrationConnectionsAtStart =
+          (GetWindowLongW(connectionsPage, GWL_STYLE) & WS_VISIBLE) &&
+          !(GetWindowLongW(canvas, GWL_STYLE) & WS_VISIBLE);
       integrationStarted = GetTickCount64();
       SetTimer(mainWindow, 3, 100, nullptr);
       connectNow();
@@ -2426,6 +2726,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR arguments, int show) {
     startOSC();
   MSG msg;
   while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+    if (IsWindowVisible(settingsPanel) && IsDialogMessageW(settingsPanel, &msg))
+      continue;
     if (GetFocus() != canvas && IsDialogMessageW(mainWindow, &msg))
       continue;
     TranslateMessage(&msg);

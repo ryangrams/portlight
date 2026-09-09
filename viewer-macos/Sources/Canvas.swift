@@ -52,7 +52,7 @@ final class MonitorCanvas: NSView {
         surface.setFillColor(NSColor(calibratedRed:0.12,green:0.18,blue:0.22,alpha:1).cgColor); surface.fill(CGRect(x:20,y:h-90,width:w-40,height:62))
         let ns = NSGraphicsContext(cgContext:surface,flipped:false)
         NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = ns
-        ("Monitor \(number) · Studio preview" as NSString).draw(at:NSPoint(x:40,y:h-74),withAttributes:[.font:NSFont.systemFont(ofSize:24,weight:.semibold),.foregroundColor:NSColor.white])
+        ("Display \(number) · Studio preview" as NSString).draw(at:NSPoint(x:40,y:h-74),withAttributes:[.font:NSFont.systemFont(ofSize:24,weight:.semibold),.foregroundColor:NSColor.white])
         ("Only selected screens stream. Switch, zoom, or choose HD to save bandwidth." as NSString).draw(at:NSPoint(x:40,y:h-118),withAttributes:[.font:NSFont.systemFont(ofSize:15),.foregroundColor:NSColor.lightGray])
         for row in 0..<5 { for col in 0..<4 {
             let rect = CGRect(x:40+CGFloat(col)*(w-100)/4,y:60+CGFloat(row)*(h-230)/5,width:(w-140)/4,height:(h-270)/5)
@@ -113,5 +113,41 @@ final class MonitorCanvas: NSView {
 
 final class DesktopView: NSView {
     override var isFlipped: Bool { true }
-    override func draw(_ dirtyRect:NSRect) { NSColor(calibratedWhite:0.045,alpha:1).setFill(); dirtyRect.fill() }
+    override func draw(_ dirtyRect:NSRect) { NSColor.underPageBackgroundColor.setFill(); dirtyRect.fill() }
+}
+
+final class ConnectionCard: NSView {
+    override func draw(_ dirtyRect:NSRect) {
+        let path = NSBezierPath(roundedRect:bounds.insetBy(dx:0.5,dy:0.5),xRadius:14,yRadius:14)
+        NSColor.controlBackgroundColor.setFill(); path.fill()
+        NSColor.separatorColor.setStroke(); path.lineWidth = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? 1.5 : 0.5; path.stroke()
+    }
+}
+final class ConnectionsDocument: NSView { override var isFlipped: Bool { true } }
+
+final class ConnectionInputView: NSView {
+    private let field: NSTextField
+    private var observers: [NSObjectProtocol] = []
+    init(field:NSTextField) {
+        self.field = field; super.init(frame:.zero)
+        field.isBezeled = false; field.isBordered = false; field.drawsBackground = false; field.focusRingType = .none; field.controlSize = .regular
+        field.translatesAutoresizingMaskIntoConstraints = false; addSubview(field)
+        NSLayoutConstraint.activate([heightAnchor.constraint(equalToConstant:34),field.leadingAnchor.constraint(equalTo:leadingAnchor,constant:10),field.trailingAnchor.constraint(equalTo:trailingAnchor,constant:-10),field.centerYAnchor.constraint(equalTo:centerYAnchor),field.heightAnchor.constraint(equalToConstant:22)])
+        for notification in [NSControl.textDidBeginEditingNotification,NSControl.textDidEndEditingNotification] {
+            observers.append(NotificationCenter.default.addObserver(forName:notification,object:field,queue:.main) { [weak self] _ in self?.needsDisplay = true })
+        }
+        for notification in [NSWindow.didBecomeKeyNotification,NSWindow.didResignKeyNotification] {
+            observers.append(NotificationCenter.default.addObserver(forName:notification,object:nil,queue:.main) { [weak self] _ in self?.needsDisplay = true })
+        }
+    }
+    required init?(coder:NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func draw(_ dirtyRect:NSRect) {
+        let focused = field.currentEditor() != nil && window?.isKeyWindow == true
+        let path = NSBezierPath(roundedRect:bounds.insetBy(dx:1,dy:1),xRadius:7,yRadius:7)
+        NSColor.textBackgroundColor.setFill(); path.fill()
+        (focused ? NSColor.controlAccentColor : NSColor.tertiaryLabelColor).setStroke()
+        path.lineWidth = focused ? 2 : (NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? 1.5 : 0.75); path.stroke()
+    }
+    override func mouseDown(with event:NSEvent) { window?.makeFirstResponder(field); needsDisplay = true }
+    deinit { observers.forEach(NotificationCenter.default.removeObserver) }
 }

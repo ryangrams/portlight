@@ -1,34 +1,59 @@
-# Studio Upgrade Remote — macOS viewer
+# Portlight for macOS
 
-Native AppKit viewer for the SU Remote v1 server. Requires macOS 14.4 or newer. Build on Apple Silicon with Xcode Command Line Tools:
+Portlight is the native macOS viewer from Studio Upgrade. Requires macOS 14.4 or newer. Build with Xcode Command Line Tools:
 
 ```sh
 ./build.sh
-open 'build/SU Remote Viewer.app'
+open 'build/Portlight.app'
 ```
 
-The app is ad-hoc signed for development. The `build.sh` script also runs offline protocol/model tests. Developer ID signing and notarization are not configured for this preview.
+Preview builds are ad hoc signed and are not yet Developer ID signed or notarized.
 
-Enter a Mac's address, port (default 5920), and server password. Compare the SHA-256 fingerprint with **Connection Details** on the server before trusting a new server identity. Changed certificates require a new explicit confirmation. Saved passwords go to the macOS Keychain only when selected in the Save Preset dialog.
+## Connect
 
-Use monitor checkboxes to choose screens within one encrypted connection. HD, FHD, QHD, and UHD control the server's output size; zoom only changes viewer display geometry. Unsupported presets are disabled. Audio is off by default. The initial audio codec is 24 kHz mono μ-law, approximately 192 kbps before transport overhead.
+The **Connections** window contains a saved-computers sidebar and a simple Computer / Password form. Choose a saved connection or enter a computer name or IP address, then click **Connect**. **Advanced** contains the port (default 5920), ZeroTier settings, and Save Connection.
 
-**Controls:** Fit all, Fit monitor (the clicked screen), 100%, zoom, fullscreen, scroll bars, and pointer edge panning. Option-scroll pans the local viewport; ordinary scroll goes to the remote Mac. Control-Option-Escape releases remote keys and returns focus to the local window. Minimizing pauses image and audio subscriptions. View-only disables remote input. The server can still restrict control when macOS permission is unavailable.
+Compare a new computer’s SHA-256 certificate fingerprint with **Connection Details** in Portlight Host before trusting it. Changed certificates require explicit approval. Saved passwords go to macOS Keychain only when selected in the Save Connection dialog. Existing connection storage and Keychain identifiers remain compatible with the earlier preview.
 
-The selected monitors retain their layout when panned out of sight, but their zero-area subscriptions prevent unnecessary image updates. Dirty PNG/JPEG rectangles are bounded and validated before decoding, and obsolete subscription revisions are discarded.
+Authentication opens a separate viewing window. Its compact native toolbar contains the computer name/status, **Displays**, **Fit/zoom**, **Audio**, and **View settings**. The remote picture fills the rest of the window. Disconnecting or closing the viewing window returns to Connections.
 
-**OSC:** Localhost UDP 19790, using the shared addresses in `../PROTOCOL.md`. `/su/remote/state/get` replies to the sender, with no password or network token. Native UI and OSC use the same actions. External LAN OSC listening is not implemented in this preview.
+## View and control
 
-**ZeroTier:** The optional bundled `su-zerotier` helper uses an already installed local ZeroTier service. The ZeroTier dialog shows networks and lets a preset choose a required network plus explicit networks it may temporarily suspend. Policies do nothing until connecting. The app restores its transaction on disconnect/quit, and offers Restore or Keep Current Networks for saved recovery records. Local service token access may require additional setup; the app never exports that token.
+**Displays** chooses one or more displays without reconnecting. **View settings** controls HD/FHD/QHD/UHD resolution, color mode, Optimize For (Automatic / Text & controls / Video), frame rate, bandwidth limit in Mbps, panning, Allow Control, and Pause Streaming. Unsupported resolution choices are disabled. An Automatic bandwidth limit sends `0` over the existing protocol.
 
-## Development verification
+Resolution controls the computer’s transmitted output size. Zoom changes only local viewing geometry. Fit Displays, Fit This Display, Actual Size, Zoom In/Out, and macOS fullscreen controls remain available. Option-scroll pans the local viewport; ordinary scroll goes to the remote computer. **Control-Option-Escape** releases remote keys and returns local focus. Clicking a local control, changing selection, minimizing, losing focus, or disconnecting also releases held input.
+
+Audio is off by default. The initial codec is 24 kHz mono μ-law, approximately 192 kbps before transport overhead. Minimizing pauses both image and audio subscriptions. Disabling Allow Control enables view-only mode.
+
+Display geometry remains stable when panned out of sight, but zero-area subscriptions suppress unnecessary image updates. PNG/JPEG rectangles and negotiated canvas dimensions are bounded and checked before decoding. Obsolete subscription revisions are discarded.
+
+The interface follows the system appearance and accessibility settings. Light/dark appearance overrides exist only for synthetic screenshot tests. Native popovers and materials respect reduced-motion/transparency preferences; no live remote pixels are recolored by the viewer theme.
+
+## OSC and ZeroTier
+
+OSC listens on **localhost UDP 19790** using the shared contract in `../PROTOCOL.md`. `/su/remote/state/get` replies to its sender without secrets. The UI and OSC use the same actions; existing `/su/remote/monitors/select` and preset addresses remain unchanged for compatibility. LAN OSC listening is not implemented in this preview.
+
+The bundled optional `su-zerotier` helper uses an already installed local ZeroTier service. Advanced → ZeroTier shows networks and lets a saved connection select its required network and explicit networks it may temporarily pause. Changes occur only when connecting. Restoration runs on disconnect and quit; pending recovery offers Restore or Keep Current Networks. Local token access may require additional setup. Tokens are never exported in saved connections or OSC replies.
+
+## Verification
 
 ```sh
-'build/SU Remote Viewer.app/Contents/MacOS/su-remote-viewer' --self-test
-'build/SU Remote Viewer.app/Contents/MacOS/su-remote-viewer' --demo --snapshot /tmp/su-remote-viewer.png
+'build/Portlight.app/Contents/MacOS/su-remote-viewer' --self-test
 python3 test-integration.py
+python3 test-appearance.py
 ```
 
-Integration uses an isolated fixture server on loopback, temporary credentials, and an explicitly supplied exact TLS fingerprint. It exercises real native WebSocket reception and PNG/JPEG decoding, then writes a report and screenshot under `build/`. It does not grant capture permissions, capture a real desktop, send input to the studio, or change ZeroTier networks.
+The integration test starts a temporary loopback fixture, uses an exact test certificate fingerprint, and verifies real TLS/WebSocket reception, decoded image tiles, monitor selection, and Connections → Viewing → Connections transitions. It writes `build/integration-report.json` and `build/integration-viewer.png`. Set `PORTLIGHT_TEST_SERVER` to use a specific local fixture executable.
 
-Current limitations: no H.264 decoder, no native IME/composed-text entry, no independent audio volume control, one viewer window, and no automatic installer for login-window server access. PNG/JPEG and lossless reduced-color modes are supported. Real screen capture/control and audio require a consented target-machine acceptance test.
+The appearance test first runs 17 native UI regression checks, including cancellation during a stubbed ZeroTier activation, then generates 12 bounded native captures under `build/design-review`, plus `index.json`: Connections and Viewing in light/dark at normal/minimum sizes, and both toolbar popovers in each appearance. It uses synthetic connection/display data, disables OSC during capture, and never connects to a computer, captures a real desktop, sends input, changes ZeroTier networks, or reads Keychain passwords. CI can run it with the repository’s `.test-venv/bin/python`.
+
+A single capture can be generated with:
+
+```sh
+'build/Portlight.app/Contents/MacOS/su-remote-viewer' \
+  --ui-snapshot setup --appearance dark --size minimum --snapshot /tmp/portlight.png
+```
+
+Use `session` for the viewing window; add `--popover settings` or `--popover displays` to capture the anchored panel.
+
+Current limitations: no H.264 decoder, native IME/composed-text input, independent audio volume control, or multiple simultaneous viewing windows. Real capture/control/audio still require a consented target-machine acceptance test. PNG/JPEG and reduced-color modes are supported.

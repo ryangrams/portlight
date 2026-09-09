@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Native viewer integration against an isolated loopback fixture server."""
 import json
+import os
 import pathlib
 import subprocess
 import tempfile
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parent
-SERVER = ROOT.parent / 'server-macos/build/SU Remote Server.app/Contents/MacOS/SURemoteServer'
-VIEWER = ROOT / 'build/SU Remote Viewer.app/Contents/MacOS/su-remote-viewer'
+SERVER = pathlib.Path(os.environ.get('PORTLIGHT_TEST_SERVER', str(ROOT.parent / 'server-macos/build/Portlight Host.app/Contents/MacOS/SURemoteServer')))
+VIEWER = ROOT / 'build/Portlight.app/Contents/MacOS/su-remote-viewer'
 
 with tempfile.TemporaryDirectory(prefix='su-native-viewer-test-') as folder:
     test_dir = pathlib.Path(folder)
@@ -32,6 +33,7 @@ with tempfile.TemporaryDirectory(prefix='su-native-viewer-test-') as folder:
             result = json.loads(report.read_text())
             assert result['connected'] and result['framesDecoded'] > 0 and result['framesRejected'] == 0, result
             assert len(result['selected']) == 3 and result['revision'] >= 2, result
+            assert result['startedInConnections'] and result['sessionWindowVisible'] and not result['connectionsWindowVisible'] and result['returnedToConnections'], result
             print(json.dumps(result, indent=2))
             print('PASS native TLS/WebSocket, monitor switching, and image decoding')
             print(snapshot)

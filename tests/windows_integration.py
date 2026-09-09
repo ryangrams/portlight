@@ -16,9 +16,26 @@ import ssl
 import struct
 import subprocess
 import tempfile
+import zlib
 
 from PIL import Image, ImageDraw
 from websockets.asyncio.server import serve
+
+
+def gray4_png(width, height):
+    """Exercise native WIC with the host's packed, 4-bit grayscale PNG format."""
+    def chunk(kind, data):
+        return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
+    rows = bytearray()
+    for y in range(height):
+        rows.append(0)  # PNG filter: none.
+        for x in range(0, width, 2):
+            left = (x // 31 + y // 23) % 16
+            right = ((x + 1) // 31 + y // 23) % 16 if x + 1 < width else 0
+            rows.append((left << 4) | right)
+    return (b'\x89PNG\r\n\x1a\n'
+            + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 4, 0, 0, 0, 0))
+            + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
 
 
 def certificate(folder):
@@ -42,7 +59,7 @@ def certificate(folder):
 
 
 async def run(viewer):
-    observed = {'connections': 0, 'authenticated': 0, 'subscriptions': [], 'framesSent': 0, 'acks': 0}
+    observed = {'connections': 0, 'authenticated': 0, 'subscriptions': [], 'framesSent': 0, 'gray4Frames': 0, 'acks': 0}
     displays = [dict(id=f'fixture-{i}', name=f'Test Monitor {i}', width=1920, height=1080,
                      primary=i == 1) for i in range(1, 4)]
     known = {d['id'] for d in displays}
@@ -87,11 +104,15 @@ async def run(viewer):
                     draw.text((24, 24), f'{id} - TOP - revision {revision}', fill='white')
                     encoded = io.BytesIO()
                     image.save(encoded, format='PNG')
+                    payload = encoded.getvalue()
+                    if id == 'fixture-3':
+                        payload = gray4_png(width, height)
+                        observed['gray4Frames'] += 1
                     sequence += 1
                     header = json.dumps(dict(type='frame', revision=revision, display=id, x=0, y=0,
                                              width=width, height=height, canvasWidth=width,
                                              canvasHeight=height, codec='png', sequence=sequence)).encode()
-                    await ws.send(struct.pack('>I', len(header)) + header + encoded.getvalue())
+                    await ws.send(struct.pack('>I', len(header)) + header + payload)
                     observed['framesSent'] += 1
             elif kind == 'frameAck':
                 assert 0 < message['sequence'] <= sequence
@@ -133,10 +154,14 @@ async def run(viewer):
             print('Native report:', json.dumps(native), flush=True)
             assert process.returncode == 0, f'Viewer integration exit code {process.returncode}'
             assert native.get('ok') is True and native.get('rejectedFrames') == 0, native
+            transitions = native.get('uiTransitions', {})
+            assert all(transitions.get(name) is True for name in
+                       ('connectionsAtStart', 'viewingAfterAuthentication', 'connectionsAfterDisconnect')), native
         assert observed['connections'] == 1 and observed['authenticated'] == 1, observed
         selections = [set(s['displays']) for s in observed['subscriptions']]
         assert {'fixture-1'} in selections and {'fixture-3'} in selections and {'fixture-1', 'fixture-3'} in selections, observed
         assert observed['acks'] >= 3, observed
+        assert observed['gray4Frames'] >= 2, observed
         print(json.dumps(dict(ok=True, native=native, protocol=observed), indent=2))
 
 

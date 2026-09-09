@@ -2,7 +2,35 @@ import AppKit
 import Network
 import Security
 
-final class ViewerController: NSWindowController, NSWindowDelegate {
+final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDelegate, NSTableViewDataSource, NSTableViewDelegate {
+    let productName = "Portlight"
+    private let connectionsWindow = NSWindow(contentRect:NSRect(x:0,y:0,width:740,height:520),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
+    private let advancedButton = NSButton()
+    private let allowControlButton = NSButton(checkboxWithTitle:"Allow control",target:nil,action:nil)
+    private let panningPopup = NSPopUpButton()
+    private let bandwidthLimitField = NSComboBox()
+    private var connecting = false
+    private var connectionAttempt = UUID()
+    private var activationInFlight = false
+    private var pendingQuit: (()->Void)?
+    private var testTransportConnect: ((String,Int,String)->Void)?
+    private var testZeroTier: (([String:Any],@escaping([String:Any])->Void)->Void)?
+    private let advancedStack = NSStackView()
+    private let savedConnectionsStack = NSStackView()
+    private let savedTable = NSTableView()
+    private let emptySavedLabel = NSTextField(wrappingLabelWithString:"Save a connection to find it here next time.")
+    private var savedRows: [(id:String,name:String,host:String)] = []
+    private var updatingSavedTable = false
+    private let sessionNameLabel = NSTextField(labelWithString:"")
+    private let sessionStatusLabel = NSTextField(labelWithString:"")
+    private var serverName = ""
+    private var pendingFullScreen: Bool?
+    private var toolbarDisplays: NSButton?
+    private var toolbarZoom: NSButton?
+    private var toolbarAudio: NSButton?
+    private var toolbarSettings: NSButton?
+    private var activePopover: NSPopover?
+    private var screenshotFixture = false
     private let transport = RemoteTransport()
     private let audio = RemoteAudio()
     private let osc = OSCReceiver()
@@ -22,7 +50,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
     private let viewOnlyButton = NSButton(checkboxWithTitle:"View only",target:nil,action:nil)
     private let followButton = NSButton(checkboxWithTitle:"Follow pointer",target:nil,action:nil)
     private let zoomLabel = NSTextField(labelWithString:"Fit")
-    private let statusLabel = NSTextField(labelWithString:"Connect to a Mac to choose its monitors.")
+    private let statusLabel = NSTextField(labelWithString:"Choose a computer to connect.")
     private let metricsLabel = NSTextField(labelWithString:"OSC · 127.0.0.1:19790")
     private let monitorStack = NSStackView()
     private let desktop = DesktopView()
@@ -64,16 +92,21 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
 
     init() {
         let w = NSWindow(contentRect:NSRect(x:0,y:0,width:1220,height:820),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
-        w.title = "Studio Upgrade Remote"; w.appearance = NSAppearance(named:.aqua); w.minSize = NSSize(width:840,height:540); w.center()
+        w.title = productName; w.minSize = NSSize(width:660,height:420); w.center()
         super.init(window:w); w.delegate = self; w.acceptsMouseMovedEvents = true
+        connectionsWindow.title = "Connections"; connectionsWindow.minSize = NSSize(width:680,height:500); connectionsWindow.center(); connectionsWindow.delegate = self
+        connectionsWindow.isReleasedWhenClosed = false; w.isReleasedWhenClosed = false
+        w.animationBehavior = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? .none : .default
+        connectionsWindow.animationBehavior = w.animationBehavior
         buildUI(); bindTransport(); reloadPresets()
         osc.onMessage = { [weak self] message,peer in self?.handleOSC(message,peer:peer) }
-        osc.onStatus = { [weak self] in self?.metricsLabel.stringValue = $0 }; osc.start()
+        osc.onStatus = { [weak self] in self?.metricsLabel.stringValue = $0 }; if !CommandLine.arguments.contains("--ui-snapshot") && !CommandLine.arguments.contains("--ui-check") { osc.start() }
         statsTimer = Timer.scheduledTimer(withTimeInterval:1,repeats:true) { [weak self] _ in self?.updateStats() }
         NotificationCenter.default.addObserver(self,selector:#selector(viewportChanged),name:NSView.boundsDidChangeNotification,object:scroll.contentView)
         NotificationCenter.default.addObserver(self,selector:#selector(appDeactivated),name:NSApplication.didResignActiveNotification,object:nil)
         scroll.contentView.postsBoundsChangedNotifications = true
         NSEvent.addLocalMonitorForEvents(matching:[.keyDown]) { [weak self] event in
+            if event.keyCode == 3 && event.modifierFlags.contains([.control,.command]), let self { (self.ready ? self.window : self.connectionsWindow)?.toggleFullScreen(nil); return nil }
             if event.keyCode == 53 && event.modifierFlags.contains([.control,.option]) { self?.releaseInput(); self?.window?.makeFirstResponder(nil); return nil }; return event
         }
     }
@@ -82,44 +115,232 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
     private func button(_ title:String,_ action:Selector) -> NSButton { NSButton(title:title,target:self,action:action) }
     private func row(_ items:[NSView],spacing:CGFloat = 8) -> NSStackView { let r = NSStackView(views:items); r.orientation = .horizontal; r.spacing = spacing; r.alignment = .centerY; return r }
     private func buildUI() {
-        guard let content = window?.contentView else { return }
-        let root = NSStackView(); root.orientation = .vertical; root.alignment = .leading; root.spacing = 10; root.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(root)
-        NSLayoutConstraint.activate([root.leadingAnchor.constraint(equalTo:content.leadingAnchor,constant:16),root.trailingAnchor.constraint(equalTo:content.trailingAnchor,constant:-16),root.topAnchor.constraint(equalTo:content.topAnchor,constant:14),root.bottomAnchor.constraint(equalTo:content.bottomAnchor,constant:-12)])
-        let brand = NSTextField(labelWithString:"STUDIO UPGRADE  /  REMOTE"); brand.font = .systemFont(ofSize:12,weight:.bold); brand.textColor = .secondaryLabelColor
-        root.addArrangedSubview(brand)
-        hostField.placeholderString = "Mac host name or IP"; hostField.widthAnchor.constraint(greaterThanOrEqualToConstant:220).isActive = true
-        portField.widthAnchor.constraint(equalToConstant:64).isActive = true
-        passwordField.placeholderString = "Server password"; passwordField.widthAnchor.constraint(equalToConstant:180).isActive = true
-        connectButton.target = self; connectButton.action = #selector(connectAction); connectButton.bezelStyle = .rounded
-        let connection = row([label("SERVER"),hostField,label("PORT"),portField,passwordField,connectButton,button("ZeroTier…",#selector(zeroTierAction))])
-        root.addArrangedSubview(connection)
-        presetPopup.addItem(withTitle:"Saved connections"); presetPopup.widthAnchor.constraint(equalToConstant:220).isActive = true; presetPopup.target = self; presetPopup.action = #selector(recallPresetAction)
-        let presetRow = row([presetPopup,button("Save preset…",#selector(savePresetAction)),button("Fullscreen",#selector(fullscreenAction)),label(helpText)])
-        root.addArrangedSubview(presetRow)
-        monitorStack.orientation = .horizontal; monitorStack.spacing = 14
-        monitorStack.addArrangedSubview(label("MONITORS · Available after connecting"))
-        root.addArrangedSubview(monitorStack)
+        configureControls()
+        buildConnectionsWindow()
+        buildViewingWindow()
+    }
+    private func configureControls() {
+        hostField.placeholderString = "Computer name or IP address"
+        hostField.font = .systemFont(ofSize:14); hostField.controlSize = .large
+        hostField.setAccessibilityLabel("Computer address")
+        passwordField.placeholderString = "Password"; passwordField.font = .systemFont(ofSize:14); passwordField.controlSize = .large
+        passwordField.setAccessibilityLabel("Connection password")
+        passwordField.target = self; passwordField.action = #selector(connectAction)
+        portField.setAccessibilityLabel("Connection port")
+        connectButton.target = self; connectButton.action = #selector(connectAction); connectButton.bezelStyle = .rounded; connectButton.controlSize = .large; connectButton.keyEquivalent = "\r"
+        connectButton.contentTintColor = .white; connectButton.bezelColor = .controlAccentColor
+        connectButton.setAccessibilityLabel("Connect to computer")
         resolutionPopup.addItems(withTitles:Resolution.allCases.map(\.label)); resolutionPopup.selectItem(at:2)
-        colorPopup.addItems(withTitles:["Full color","256 colors","16-bit color","16 shades of gray"])
-        qualityPopup.addItems(withTitles:["Adaptive","Desktop · sharp text","Motion · smaller JPEG"])
+        colorPopup.addItems(withTitles:["Full color","256 colors","16-bit color","Grayscale · 16 shades"])
+        qualityPopup.addItems(withTitles:["Automatic","Text & controls","Video"])
         fpsPopup.addItems(withTitles:["5 fps","10 fps","15 fps","30 fps","60 fps"]); fpsPopup.selectItem(at:2)
         for popup in [resolutionPopup,colorPopup,qualityPopup,fpsPopup] { popup.target = self; popup.action = #selector(settingsAction) }
-        bandwidthField.widthAnchor.constraint(equalToConstant:72).isActive = true; bandwidthField.target = self; bandwidthField.action = #selector(settingsAction); bandwidthField.toolTip = "Total target in kilobits per second. 0 is automatic; otherwise 100–100000."
-        let settings = row([label("SIZE"),resolutionPopup,label("COLOR"),colorPopup,qualityPopup,fpsPopup,label("CAP kbps"),bandwidthField])
-        root.addArrangedSubview(settings)
+        resolutionPopup.setAccessibilityLabel("Display resolution"); colorPopup.setAccessibilityLabel("Color depth"); qualityPopup.setAccessibilityLabel("Picture priority"); fpsPopup.setAccessibilityLabel("Frame rate")
+        bandwidthField.target = self; bandwidthField.action = #selector(settingsAction); bandwidthField.setAccessibilityLabel("Bandwidth limit in kilobits per second")
         for b in [pauseButton,audioButton,viewOnlyButton,followButton] { b.target = self; b.action = #selector(settingsAction) }
-        audioButton.toolTip = "Optional low-bandwidth system audio (24 kHz mono μ-law, about 192 kbps). No microphone."
-        followButton.toolTip = "Pan near the viewport edges. Turn off to use scroll bars. Option-scroll always pans locally."
-        zoomLabel.widthAnchor.constraint(equalToConstant:55).isActive = true
-        root.addArrangedSubview(row([button("Fit all",#selector(fitAction)),button("Fit monitor",#selector(fitMonitorAction)),button("−",#selector(zoomOutAction)),zoomLabel,button("+",#selector(zoomInAction)),button("100%",#selector(actualSizeAction)),followButton,pauseButton,viewOnlyButton,audioButton]))
-        scroll.documentView = desktop; scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true; scroll.autohidesScrollers = false; scroll.borderType = .bezelBorder; scroll.drawsBackground = true; scroll.backgroundColor = NSColor(calibratedWhite:0.045,alpha:1)
-        root.addArrangedSubview(scroll); scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.widthAnchor.constraint(equalTo:root.widthAnchor).isActive = true; scroll.heightAnchor.constraint(greaterThanOrEqualToConstant:220).isActive = true
-        scroll.setContentHuggingPriority(.defaultLow,for:.vertical)
-        let status = row([statusLabel,NSView(),metricsLabel]); root.addArrangedSubview(status); status.widthAnchor.constraint(equalTo:root.widthAnchor).isActive = true
-        statusLabel.font = .systemFont(ofSize:11); statusLabel.lineBreakMode = .byTruncatingTail; metricsLabel.font = .monospacedDigitSystemFont(ofSize:11,weight:.regular); metricsLabel.textColor = .secondaryLabelColor
-        root.addArrangedSubview(label("Preview build · LAN / VPN · encrypted connection · native macOS viewer"))
+        followButton.title = "Pan as the pointer reaches an edge"
+        viewOnlyButton.title = "View only"; pauseButton.title = "Pause streaming"
+        allowControlButton.state = .on; allowControlButton.target = self; allowControlButton.action = #selector(allowControlAction)
+        panningPopup.addItems(withTitles:["Scroll","Follow pointer"]); panningPopup.target = self; panningPopup.action = #selector(panningAction)
+        bandwidthLimitField.addItems(withObjectValues:["Automatic","1","2","4","8","16"]); bandwidthLimitField.stringValue = "4"; bandwidthLimitField.target = self; bandwidthLimitField.action = #selector(bandwidthAction)
+        bandwidthLimitField.setAccessibilityLabel("Bandwidth limit in megabits per second")
+        allowControlButton.setAccessibilityLabel("Allow remote control"); panningPopup.setAccessibilityLabel("Panning mode")
+        audioButton.toolTip = "Play this computer’s system audio"; audioButton.setAccessibilityLabel("System audio")
+        statusLabel.stringValue = ""; statusLabel.font = .systemFont(ofSize:12); statusLabel.textColor = .secondaryLabelColor; statusLabel.maximumNumberOfLines = 2; statusLabel.lineBreakMode = .byWordWrapping
+        metricsLabel.font = .monospacedDigitSystemFont(ofSize:11,weight:.regular); metricsLabel.textColor = .secondaryLabelColor
+    }
+    private func buildConnectionsWindow() {
+        guard let content = connectionsWindow.contentView else { return }
+        let sidebar = material(.sidebar); sidebar.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(sidebar)
+        let main = material(.underWindowBackground); main.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(main)
+        NSLayoutConstraint.activate([sidebar.leadingAnchor.constraint(equalTo:content.leadingAnchor),sidebar.topAnchor.constraint(equalTo:content.topAnchor),sidebar.bottomAnchor.constraint(equalTo:content.bottomAnchor),sidebar.widthAnchor.constraint(equalToConstant:216),main.leadingAnchor.constraint(equalTo:sidebar.trailingAnchor),main.trailingAnchor.constraint(equalTo:content.trailingAnchor),main.topAnchor.constraint(equalTo:content.topAnchor),main.bottomAnchor.constraint(equalTo:content.bottomAnchor)])
+        let sidebarTitle = NSTextField(labelWithString:"Saved connections"); sidebarTitle.font = .systemFont(ofSize:12,weight:.semibold); sidebarTitle.textColor = .secondaryLabelColor; sidebarTitle.translatesAutoresizingMaskIntoConstraints = false; sidebar.addSubview(sidebarTitle)
+        let listScroll = NSScrollView(); listScroll.drawsBackground = false; listScroll.hasVerticalScroller = true; listScroll.autohidesScrollers = true; listScroll.borderType = .noBorder; listScroll.translatesAutoresizingMaskIntoConstraints = false; sidebar.addSubview(listScroll)
+        let column = NSTableColumn(identifier:.init("connection")); column.width = 208; savedTable.addTableColumn(column); savedTable.headerView = nil; savedTable.rowHeight = 56; savedTable.intercellSpacing = NSSize(width:0,height:4); savedTable.backgroundColor = .clear; savedTable.style = .sourceList; savedTable.allowsEmptySelection = true
+        savedTable.dataSource = self; savedTable.delegate = self; savedTable.target = self; savedTable.doubleAction = #selector(savedTableConnect); savedTable.setAccessibilityLabel("Saved connections")
+        listScroll.documentView = savedTable
+        let newConnection = toolbarButton("New connection",symbol:"plus",action:#selector(newConnectionAction)); newConnection.bezelStyle = .recessed; newConnection.isBordered = false; newConnection.translatesAutoresizingMaskIntoConstraints = false; sidebar.addSubview(newConnection)
+        emptySavedLabel.font = .systemFont(ofSize:12); emptySavedLabel.textColor = .secondaryLabelColor; emptySavedLabel.maximumNumberOfLines = 0; emptySavedLabel.translatesAutoresizingMaskIntoConstraints = false; sidebar.addSubview(emptySavedLabel)
+        NSLayoutConstraint.activate([sidebarTitle.leadingAnchor.constraint(equalTo:sidebar.leadingAnchor,constant:16),sidebarTitle.topAnchor.constraint(equalTo:sidebar.topAnchor,constant:24),listScroll.leadingAnchor.constraint(equalTo:sidebar.leadingAnchor,constant:8),listScroll.trailingAnchor.constraint(equalTo:sidebar.trailingAnchor,constant:-8),listScroll.topAnchor.constraint(equalTo:sidebarTitle.bottomAnchor,constant:12),listScroll.bottomAnchor.constraint(equalTo:newConnection.topAnchor,constant:-16),newConnection.leadingAnchor.constraint(equalTo:sidebar.leadingAnchor,constant:16),newConnection.bottomAnchor.constraint(equalTo:sidebar.bottomAnchor,constant:-20),emptySavedLabel.leadingAnchor.constraint(equalTo:sidebar.leadingAnchor,constant:20),emptySavedLabel.trailingAnchor.constraint(equalTo:sidebar.trailingAnchor,constant:-20),emptySavedLabel.topAnchor.constraint(equalTo:listScroll.topAnchor,constant:12)])
+        let root = vertical(spacing:24); root.translatesAutoresizingMaskIntoConstraints = false; main.addSubview(root)
+        NSLayoutConstraint.activate([root.centerXAnchor.constraint(equalTo:main.centerXAnchor),root.topAnchor.constraint(equalTo:main.topAnchor,constant:32),root.widthAnchor.constraint(equalToConstant:372),root.bottomAnchor.constraint(lessThanOrEqualTo:main.bottomAnchor,constant:-24)])
+        let brandImage = Bundle.main.url(forResource:"Portlight",withExtension:"png").flatMap { NSImage(contentsOf:$0) }
+        let mark = NSImageView(image:brandImage ?? NSImage(systemSymbolName:"rectangle.on.rectangle",accessibilityDescription:productName) ?? NSImage()); mark.widthAnchor.constraint(equalToConstant:64).isActive = true; mark.heightAnchor.constraint(equalToConstant:64).isActive = true
+        let title = NSTextField(labelWithString:productName); title.font = .systemFont(ofSize:28,weight:.bold)
+        let subtitle = NSTextField(labelWithString:"Your screens, closer."); subtitle.font = .systemFont(ofSize:13); subtitle.textColor = .secondaryLabelColor
+        let heroText = vertical(spacing:4); heroText.addArrangedSubview(title); heroText.addArrangedSubview(subtitle)
+        let hero = row([mark,heroText],spacing:16); root.addArrangedSubview(hero)
+        let form = vertical(spacing:16)
+        let computerGroup = fieldGroup("Computer",hostField); form.addArrangedSubview(computerGroup); computerGroup.widthAnchor.constraint(equalTo:form.widthAnchor).isActive = true
+        let passwordGroup = fieldGroup("Password",passwordField); form.addArrangedSubview(passwordGroup); passwordGroup.widthAnchor.constraint(equalTo:form.widthAnchor).isActive = true
+
+        form.addArrangedSubview(connectButton); connectButton.widthAnchor.constraint(equalTo:form.widthAnchor).isActive = true; connectButton.heightAnchor.constraint(equalToConstant:34).isActive = true
+        advancedButton.title = "Advanced"; advancedButton.image = NSImage(systemSymbolName:"chevron.right",accessibilityDescription:nil); advancedButton.imagePosition = .imageLeading; advancedButton.bezelStyle = .recessed; advancedButton.isBordered = false; advancedButton.setButtonType(.onOff); advancedButton.target = self; advancedButton.action = #selector(advancedAction)
+        form.addArrangedSubview(advancedButton)
+        root.addArrangedSubview(card(form)); root.arrangedSubviews.last?.widthAnchor.constraint(equalTo:root.widthAnchor).isActive = true
+        // Advanced choices are an anchored popover, so the compact connection window never grows.
+        advancedStack.orientation = .vertical; advancedStack.alignment = .leading; advancedStack.spacing = 16
+        portField.widthAnchor.constraint(equalToConstant:84).isActive = true
+        advancedStack.addArrangedSubview(row([label("Port"),portField,NSView(),button("ZeroTier…",#selector(zeroTierAction))]))
+        advancedStack.addArrangedSubview(button("Save connection…",#selector(savePresetAction)))
+        root.addArrangedSubview(statusLabel); statusLabel.widthAnchor.constraint(equalTo:root.widthAnchor).isActive = true
+        let publisher = NSTextField(labelWithString:"by Studio Upgrade"); publisher.font = .systemFont(ofSize:11); publisher.textColor = .secondaryLabelColor; root.addArrangedSubview(publisher)
+        connectionsWindow.initialFirstResponder = hostField
+        savedTable.nextKeyView = hostField; hostField.nextKeyView = passwordField; passwordField.nextKeyView = connectButton; connectButton.nextKeyView = advancedButton; advancedButton.nextKeyView = savedTable
+    }
+    func numberOfRows(in tableView:NSTableView) -> Int { savedRows.count }
+    func tableView(_ tableView:NSTableView,viewFor tableColumn:NSTableColumn?,row:Int) -> NSView? {
+        guard savedRows.indices.contains(row) else { return nil }; let saved = savedRows[row]
+        let cell = NSTableCellView(); let icon = NSImageView(image:NSImage(systemSymbolName:"desktopcomputer",accessibilityDescription:nil) ?? NSImage()); icon.contentTintColor = .secondaryLabelColor; icon.translatesAutoresizingMaskIntoConstraints = false; cell.addSubview(icon)
+        let name = NSTextField(labelWithString:saved.name); name.font = .systemFont(ofSize:12,weight:.medium); name.lineBreakMode = .byTruncatingTail
+        let address = NSTextField(labelWithString:saved.host); address.font = .systemFont(ofSize:10); address.textColor = .secondaryLabelColor; address.lineBreakMode = .byTruncatingTail
+        let labels = vertical(spacing:3); labels.addArrangedSubview(name); labels.addArrangedSubview(address); labels.translatesAutoresizingMaskIntoConstraints = false; cell.addSubview(labels)
+        NSLayoutConstraint.activate([icon.leadingAnchor.constraint(equalTo:cell.leadingAnchor,constant:8),icon.centerYAnchor.constraint(equalTo:cell.centerYAnchor),icon.widthAnchor.constraint(equalToConstant:24),icon.heightAnchor.constraint(equalToConstant:24),labels.leadingAnchor.constraint(equalTo:icon.trailingAnchor,constant:10),labels.trailingAnchor.constraint(equalTo:cell.trailingAnchor,constant:-8),labels.centerYAnchor.constraint(equalTo:cell.centerYAnchor)])
+        cell.setAccessibilityLabel(saved.name + ", " + saved.host); return cell
+    }
+    func tableViewSelectionDidChange(_ notification:Notification) {
+        guard !updatingSavedTable, savedRows.indices.contains(savedTable.selectedRow) else { return }
+        let saved = savedRows[savedTable.selectedRow]
+        if screenshotFixture { hostField.stringValue = saved.host; return }
+        if recallPreset(saved.id,connect:false) { statusLabel.stringValue = "" }; connectionsWindow.makeFirstResponder(savedTable)
+    }
+    @objc private func savedTableConnect() { if savedRows.indices.contains(savedTable.selectedRow) { connectAction() } }
+    @objc private func newConnectionAction() {
+        if ready || connecting { disconnect() }
+        presetID = nil; hostField.stringValue = ""; passwordField.stringValue = ""; portField.stringValue = "5920"; zeroTierNetwork = nil; zeroTierManaged = []; savedTable.deselectAll(nil); statusLabel.stringValue = ""; connectionsWindow.makeFirstResponder(hostField)
+    }
+    private func buildViewingWindow() {
+        guard let window, let content = window.contentView else { return }
+        window.title = productName; window.toolbarStyle = .unifiedCompact; window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = false
+        let toolbar = NSToolbar(identifier:"SU.Remote.SessionToolbar"); toolbar.delegate = self; toolbar.displayMode = .iconOnly; toolbar.allowsUserCustomization = false; toolbar.autosavesConfiguration = false
+        window.toolbar = toolbar
+        scroll.documentView = desktop; scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true; scroll.autohidesScrollers = true; scroll.scrollerStyle = .overlay; scroll.borderType = .noBorder
+        scroll.drawsBackground = true; scroll.backgroundColor = .underPageBackgroundColor
+        pin(scroll,to:content)
+        updateToolbar()
+    }
+    private func vertical(spacing:CGFloat = 8) -> NSStackView { let v = NSStackView(); v.orientation = .vertical; v.alignment = .leading; v.spacing = spacing; return v }
+    private func fieldGroup(_ title:String,_ field:NSView) -> NSStackView {
+        let titleLabel = NSTextField(labelWithString:title); titleLabel.font = .systemFont(ofSize:12,weight:.medium)
+        let stack = vertical(spacing:6); stack.addArrangedSubview(titleLabel)
+        let input:NSView = (field as? NSTextField).map { ConnectionInputView(field:$0) } ?? field
+        stack.addArrangedSubview(input); input.widthAnchor.constraint(equalTo:stack.widthAnchor).isActive = true; return stack
+    }
+    private func pin(_ child:NSView,to parent:NSView,inset:CGFloat = 0) {
+        child.translatesAutoresizingMaskIntoConstraints = false; parent.addSubview(child)
+        NSLayoutConstraint.activate([child.leadingAnchor.constraint(equalTo:parent.leadingAnchor,constant:inset),child.trailingAnchor.constraint(equalTo:parent.trailingAnchor,constant:-inset),child.topAnchor.constraint(equalTo:parent.topAnchor,constant:inset),child.bottomAnchor.constraint(equalTo:parent.bottomAnchor,constant:-inset)])
+    }
+    private func material(_ kind:NSVisualEffectView.Material) -> NSVisualEffectView {
+        let view = NSVisualEffectView(); view.material = kind; view.blendingMode = .withinWindow; view.state = .followsWindowActiveState; return view
+    }
+    private func card(_ body:NSView) -> NSView {
+        let card = ConnectionCard(); pin(body,to:card,inset:20); return card
+    }
+    private func toolbarButton(_ title:String,symbol:String,action:Selector) -> NSButton {
+        let b = NSButton(title:title,image:NSImage(systemSymbolName:symbol,accessibilityDescription:title) ?? NSImage(),target:self,action:action)
+        b.bezelStyle = .texturedRounded; b.contentTintColor = .labelColor; b.imagePosition = .imageLeading; b.font = .systemFont(ofSize:12); b.toolTip = title; b.setAccessibilityLabel(title); return b
+    }
+    func toolbarAllowedItemIdentifiers(_ toolbar:NSToolbar) -> [NSToolbarItem.Identifier] { toolbarDefaultItemIdentifiers(toolbar) }
+    func toolbarDefaultItemIdentifiers(_ toolbar:NSToolbar) -> [NSToolbarItem.Identifier] { [.init("connection"),.flexibleSpace,.init("displays"),.init("zoom"),.init("audio"),.init("settings")] }
+    func toolbar(_ toolbar:NSToolbar,itemForItemIdentifier id:NSToolbarItem.Identifier,willBeInsertedIntoToolbar:Bool) -> NSToolbarItem? {
+        let item = NSToolbarItem(itemIdentifier:id); item.autovalidates = false; item.isEnabled = true; item.target = self; item.action = #selector(toolbarItemAction(_:))
+        switch id.rawValue {
+        case "connection":
+            sessionNameLabel.font = .systemFont(ofSize:12,weight:.semibold); sessionNameLabel.lineBreakMode = .byTruncatingTail
+            sessionNameLabel.widthAnchor.constraint(equalToConstant:210).isActive = true; sessionNameLabel.heightAnchor.constraint(equalToConstant:18).isActive = true
+            item.view = sessionNameLabel; item.label = "Connection"
+        case "displays": let b = toolbarButton("Displays",symbol:"display.2",action:#selector(displaysAction(_:))); toolbarDisplays = b; item.view = b; item.label = "Displays"
+        case "zoom": let b = toolbarButton("Fit",symbol:"arrow.up.left.and.arrow.down.right",action:#selector(zoomMenuAction(_:))); toolbarZoom = b; item.view = b; item.label = "Zoom"
+        case "audio": let b = toolbarButton("Audio",symbol:"speaker.slash",action:#selector(audioAction(_:))); toolbarAudio = b; item.view = b; item.label = "Audio"
+        case "settings": let b = toolbarButton("",symbol:"slider.horizontal.3",action:#selector(settingsPopoverAction(_:))); b.toolTip = "View settings"; b.setAccessibilityLabel("View settings"); toolbarSettings = b; item.view = b; item.label = "View settings"
+        default: return nil
+        }
+        return item
+    }
+    @objc private func toolbarItemAction(_ item:NSToolbarItem) {
+        switch item.itemIdentifier.rawValue {
+        case "displays": if let b = toolbarDisplays { displaysAction(b) }
+        case "zoom": if let b = toolbarZoom { zoomMenuAction(b) }
+        case "audio": if let b = toolbarAudio { audioAction(b) }
+        case "settings": if let b = toolbarSettings { settingsPopoverAction(b) }
+        default: break
+        }
+    }
+    private func updateToolbar() {
+        let name = serverName.isEmpty ? productName : serverName
+        let state = demo ? "Preview" : (paused ? "Paused" : "Connected")
+        let title = NSMutableAttributedString(string:name,attributes:[.font:NSFont.systemFont(ofSize:12,weight:.semibold),.foregroundColor:NSColor.labelColor])
+        title.append(NSAttributedString(string:"  ·  " + state,attributes:[.font:NSFont.systemFont(ofSize:11),.foregroundColor:NSColor.secondaryLabelColor]))
+        sessionNameLabel.attributedStringValue = title; sessionNameLabel.toolTip = name + " · " + state; sessionNameLabel.setAccessibilityLabel(name + ", " + state)
+        toolbarDisplays?.title = "Displays"; toolbarDisplays?.toolTip = "Choose displays · \(selected.count) selected"
+        toolbarZoom?.title = autoFit ? "Fit" : "\(Int(zoom*100))%"
+        toolbarAudio?.image = NSImage(systemSymbolName:audioButton.state == .on ? "speaker.wave.2" : "speaker.slash",accessibilityDescription:"Audio")
+        toolbarAudio?.state = audioButton.state; toolbarAudio?.isEnabled = audioButton.isEnabled
+        toolbarAudio?.toolTip = audioButton.state == .on ? "Turn system audio off" : "Turn system audio on"
+    }
+    private func showPopover(_ body:NSView,anchor:NSView,width:CGFloat) {
+        activePopover?.close()
+        let controller = NSViewController(); let background = material(.popover); controller.view = background; pin(body,to:background,inset:20)
+        if !body.constraints.contains(where: { $0.firstAttribute == .width && $0.secondItem == nil && $0.constant == width }) { body.widthAnchor.constraint(equalToConstant:width).isActive = true }
+        let popover = NSPopover(); popover.behavior = .transient; popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion; popover.contentViewController = controller
+        let height = body.fittingSize.height+40; popover.contentSize = CGSize(width:width+40,height:height)
+        activePopover = popover; popover.show(relativeTo:anchor.bounds,of:anchor,preferredEdge:.minY)
+    }
+    @objc private func displaysAction(_ sender:NSButton) {
+        releaseInput(); refreshMonitorButtons()
+        let content = vertical(spacing:16); let heading = NSTextField(labelWithString:"Displays"); heading.font = .systemFont(ofSize:17,weight:.semibold); content.addArrangedSubview(heading)
+        content.addArrangedSubview(monitorStack)
+        let note = NSTextField(wrappingLabelWithString:"Only the displays you choose are streamed."); note.font = .systemFont(ofSize:12); note.textColor = .secondaryLabelColor; note.widthAnchor.constraint(equalToConstant:276).isActive = true; content.addArrangedSubview(note)
+        showPopover(content,anchor:sender,width:276)
+    }
+    @objc private func zoomMenuAction(_ sender:NSButton) {
+        releaseInput(); let menu = NSMenu()
+        for (title,action) in [("Fit displays",#selector(fitAction)),("Fit this display",#selector(fitMonitorAction)),("Actual size",#selector(actualSizeAction)),("Zoom in",#selector(zoomInAction)),("Zoom out",#selector(zoomOutAction))] {
+            let item = NSMenuItem(title:title,action:action,keyEquivalent:""); item.target = self; menu.addItem(item)
+        }
+        menu.popUp(positioning:nil,at:NSPoint(x:0,y:sender.bounds.minY-4),in:sender)
+    }
+    private func preferenceRow(_ title:String,_ control:NSView) -> NSStackView {
+        let name = NSTextField(labelWithString:title); name.font = .systemFont(ofSize:12); name.widthAnchor.constraint(equalToConstant:108).isActive = true
+        let r = row([name,control]); r.widthAnchor.constraint(equalToConstant:324).isActive = true; control.setContentHuggingPriority(.defaultLow,for:.horizontal); return r
+    }
+    private func divider() -> NSBox { let box = NSBox(); box.boxType = .separator; box.widthAnchor.constraint(equalToConstant:324).isActive = true; return box }
+    @objc private func settingsPopoverAction(_ sender:NSButton) {
+        releaseInput(); syncSettings()
+        let content = vertical(spacing:16)
+        let heading = NSTextField(labelWithString:"View settings"); heading.font = .systemFont(ofSize:17,weight:.semibold); content.addArrangedSubview(heading)
+        let picture = vertical(spacing:12); picture.addArrangedSubview(preferenceRow("Resolution",resolutionPopup)); picture.addArrangedSubview(preferenceRow("Color mode",colorPopup)); picture.addArrangedSubview(preferenceRow("Optimize for",qualityPopup)); picture.addArrangedSubview(preferenceRow("Frame rate",fpsPopup))
+        picture.addArrangedSubview(preferenceRow("Bandwidth limit",row([bandwidthLimitField,label("Mbps")],spacing:6))); content.addArrangedSubview(picture)
+        content.addArrangedSubview(divider())
+        let control = vertical(spacing:12); control.addArrangedSubview(preferenceRow("Panning",panningPopup)); control.addArrangedSubview(allowControlButton); control.addArrangedSubview(pauseButton); content.addArrangedSubview(control)
+        content.addArrangedSubview(divider())
+        content.addArrangedSubview(row([button("Save connection…",#selector(savePresetAction)),NSView(),button("Disconnect",#selector(disconnectAction))]))
+        showPopover(content,anchor:sender,width:324)
+    }
+    @objc private func allowControlAction() { viewOnlyButton.state = allowControlButton.state == .on ? .off : .on; settingsAction() }
+    @objc private func panningAction() { followButton.state = panningPopup.indexOfSelectedItem == 1 ? .on : .off; settingsAction() }
+    @objc private func bandwidthAction() {
+        let value = bandwidthLimitField.stringValue.trimmingCharacters(in:.whitespacesAndNewlines)
+        if value.lowercased() == "automatic" { bandwidthField.stringValue = "0" }
+        else if let mbps = Double(value), mbps.isFinite, mbps >= 0 { bandwidthField.stringValue = String(Int(clamp(mbps*1000,0,100000))) }
+        settingsAction()
+    }
+    private func syncSettings() {
+        allowControlButton.state = viewOnlyButton.state == .on ? .off : .on
+        panningPopup.selectItem(at:followButton.state == .on ? 1 : 0)
+        bandwidthLimitField.stringValue = cap == 0 ? "Automatic" : String(format:"%g",Double(cap)/1000)
+    }
+    @objc private func audioAction(_ sender:NSButton) { audioButton.state = audioButton.state == .on ? .off : .on; settingsAction(); updateToolbar() }
+    @objc private func disconnectAction() { activePopover?.close(); disconnect() }
+    @objc private func advancedAction() { releaseInput(); showPopover(advancedStack,anchor:advancedButton,width:292); advancedButton.state = .off }
+    override func showWindow(_ sender:Any?) { if ready { window?.makeKeyAndOrderFront(sender) } else { connectionsWindow.makeKeyAndOrderFront(sender) } }
+    private func presentSession(name:String) {
+        serverName = name; activePopover?.close(); connectionsWindow.orderOut(nil); window?.title = name; window?.makeKeyAndOrderFront(nil); updateToolbar(); layoutCanvases()
+        if let desired = pendingFullScreen { pendingFullScreen = nil; if desired != (window?.styleMask.contains(.fullScreen) ?? false) { window?.toggleFullScreen(nil) } }
+    }
+    private func presentConnections() {
+        activePopover?.close(); window?.orderOut(nil); connectionsWindow.makeKeyAndOrderFront(nil); connectionsWindow.makeFirstResponder(hostField)
     }
     private var resolution:Resolution { Resolution.allCases[max(0,resolutionPopup.indexOfSelectedItem)] }
     private var color:String { ["full","color256","rgb565","gray16"][max(0,colorPopup.indexOfSelectedItem)] }
@@ -134,49 +355,76 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
         transport.onDisconnect = { [weak self] in self?.didDisconnect() }
     }
     @objc private func connectAction() {
-        if ready { disconnect(); return }
-        guard let port = validPort(portField.stringValue), !hostField.stringValue.trimmingCharacters(in:.whitespaces).isEmpty else { statusLabel.stringValue = "Enter a server and a port from 1 to 65535."; return }
-        demo = false
-        if !testing { UserDefaults.standard.set(hostField.stringValue,forKey:"SU.Remote.LastHost"); UserDefaults.standard.set(portField.stringValue,forKey:"SU.Remote.LastPort") }
+        if ready || connecting { disconnect(); return }
+        guard !activationInFlight else { statusLabel.stringValue = "Finishing the previous network change…"; return }
+        guard let port = validPort(portField.stringValue), !hostField.stringValue.trimmingCharacters(in:.whitespaces).isEmpty else { statusLabel.stringValue = "Enter a computer address and a port from 1 to 65535."; return }
+        let host = hostField.stringValue, password = passwordField.stringValue
+        connectionAttempt = UUID(); let attempt = connectionAttempt
+        demo = false; connecting = true; connectButton.title = "Cancel"; hostField.isEnabled = false; passwordField.isEnabled = false; advancedButton.isEnabled = false
+        if !testing { UserDefaults.standard.set(host,forKey:"SU.Remote.LastHost"); UserDefaults.standard.set(portField.stringValue,forKey:"SU.Remote.LastPort") }
         if let network = zeroTierNetwork, zeroTierTransaction == nil {
-            statusLabel.stringValue = "Activating the saved ZeroTier network…"
+            activationInFlight = true; statusLabel.stringValue = "Activating the saved ZeroTier network…"
             runZeroTier(["action":"activate","networkId":network,"managedNetworkIds":zeroTierManaged,"sessionId":sessionID]) { [weak self] result in
-                guard let self else { return }; guard result["ok"] as? Bool == true else { self.statusLabel.stringValue = result["message"] as? String ?? result["error"] as? String ?? "ZeroTier activation failed."; return }
+                guard let self else { return }
+                guard self.connectionAttempt == attempt, self.connecting else {
+                    if let transaction = result["transactionId"] as? String {
+                        self.runZeroTier(["action":"restore","transactionId":transaction]) { [weak self] restored in
+                            guard let self else { return }
+                            self.statusLabel.stringValue = restored["ok"] as? Bool == true ? "Connection canceled." : "Connection canceled. ZeroTier restoration needs attention."
+                            self.finishNetworkChange()
+                        }
+                    } else { self.finishNetworkChange() }
+                    return
+                }
+                self.activationInFlight = false
+                guard result["ok"] as? Bool == true else {
+                    self.connecting = false; self.connectButton.title = "Connect"; self.hostField.isEnabled = true; self.passwordField.isEnabled = true; self.advancedButton.isEnabled = true
+                    self.statusLabel.stringValue = result["message"] as? String ?? result["error"] as? String ?? "ZeroTier activation failed."; return
+                }
                 self.zeroTierTransaction = result["transactionId"] as? String
-                self.transport.connect(host:self.hostField.stringValue,port:port,password:self.passwordField.stringValue)
+                self.startTransport(host:host,port:port,password:password)
             }
-        } else { transport.connect(host:hostField.stringValue,port:port,password:passwordField.stringValue) }
+        } else { startTransport(host:host,port:port,password:password) }
     }
-    private func disconnect() { releaseInput(); transport.disconnect(); didDisconnect(); statusLabel.stringValue = "Disconnected." }
+    private func startTransport(host:String,port:Int,password:String) {
+        if let testTransportConnect { testTransportConnect(host,port,password); return }
+        transport.connect(host:host,port:port,password:password)
+    }
+    private func finishNetworkChange() {
+        activationInFlight = false; connectButton.isEnabled = true; advancedButton.isEnabled = true
+        if let completion = pendingQuit { pendingQuit = nil; completion() }
+    }
+    private func disconnect() { connectionAttempt = UUID(); releaseInput(); transport.disconnect(); didDisconnect(); statusLabel.stringValue = "Disconnected." }
     private func didDisconnect() {
-        ready = false; acceptedRevision = -1; connectButton.title = "Connect"; audio.stop(); pointerButtons = 0; pressedKeys.removeAll(); modifiers = []
+        ready = false; connecting = false; acceptedRevision = -1; connectButton.title = "Connect"; connectButton.isEnabled = !activationInFlight; advancedButton.isEnabled = !activationInFlight; hostField.isEnabled = true; passwordField.isEnabled = true; presentConnections(); audio.stop(); pointerButtons = 0; pressedKeys.removeAll(); modifiers = []
         if let transaction = zeroTierTransaction { zeroTierTransaction = nil; runZeroTier(["action":"restore","transactionId":transaction]) { [weak self] result in if result["ok"] as? Bool != true { self?.statusLabel.stringValue = "Disconnected; ZeroTier restore needs attention." } } }
     }
     private func receive(_ object:[String:Any],data:Data?) {
         guard let type = object["type"] as? String else { return }
         switch type {
         case "welcome","displays":
-            guard let rows = object["displays"] as? [[String:Any]], rows.count <= 32 else { statusLabel.stringValue = "Server sent an invalid monitor list."; return }
+            guard let rows = object["displays"] as? [[String:Any]], rows.count <= 32 else { statusLabel.stringValue = "The computer sent an invalid display list."; return }
             var parsed: [RemoteMonitor] = []
             for (index,row) in rows.enumerated() {
                 guard let id = row["id"] as? String, let width = row["width"] as? Int, let height = row["height"] as? Int, width > 0, height > 0, width <= 32768, height <= 32768, !parsed.contains(where:{$0.id == id}) else { continue }
-                parsed.append(RemoteMonitor(id:id,name:row["name"] as? String ?? "Monitor \(index+1)",width:width,height:height,number:index+1))
+                parsed.append(RemoteMonitor(id:id,name:row["name"] as? String ?? "Display \(index+1)",width:width,height:height,number:index+1))
             }
-            releaseInput(); let firstWelcome = !ready; monitors = parsed; ready = true; connectButton.title = "Disconnect"
+            releaseInput(); let firstWelcome = !ready; monitors = parsed; ready = true; connecting = false; hostField.isEnabled = true; passwordField.isEnabled = true; advancedButton.isEnabled = true; connectButton.title = "Connect"
             let available = Set(parsed.map(\.id))
             if let pending = pendingMonitorIDs { selected = pending.intersection(available); pendingMonitorIDs = nil }
             else if firstWelcome { selected = parsed.first.map { [$0.id] } ?? [] }
             else { selected = selected.intersection(available) }
             if let capabilities = object["capabilities"] as? [String:Any], let audioCodecs = capabilities["audio"] as? [String] { audioButton.isEnabled = audioCodecs.contains("mulaw"); if !audioButton.isEnabled { audioButton.state = .off } }
+            presentSession(name:object["serverName"] as? String ?? hostField.stringValue)
             refreshMonitorButtons(); validateResolution(); rebuildCanvases(); scheduleSubscription(immediate:true)
-            statusLabel.stringValue = "Connected to \(object["serverName"] as? String ?? hostField.stringValue). Choose the monitors to stream."
+            statusLabel.stringValue = "Connected to \(object["serverName"] as? String ?? hostField.stringValue). Choose the displays to view."
         case "subscribed":
             guard let ack = object["revision"] as? Int, ack == revision, let displays = object["displays"] as? [[String:Any]] else { return }
             let sizes = displays.compactMap { row -> (Int,Int)? in
                 guard let w = row["width"] as? Int, let h = row["height"] as? Int else { return nil }; return (w,h)
             }
             guard sizes.count == displays.count, sizes.allSatisfy({validCanvasDimensions(width:$0.0,height:$0.1)}), sizes.reduce(0.0,{$0+Double($1.0)*Double($1.1)}) <= maxViewerCanvasPixels else {
-                disconnect(); statusLabel.stringValue = "Server requested an unsupported canvas size. Maximum UHD per monitor and 4 UHD canvases total."; return
+                disconnect(); statusLabel.stringValue = "The computer requested an unsupported display size. Maximum UHD per display and four UHD displays total."; return
             }
             acceptedRevision = ack
             for display in displays {
@@ -196,19 +444,20 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
             guard let id = object["display"] as? String, selected.contains(id), let x = object["x"] as? Double, let y = object["y"] as? Double, x.isFinite, y.isFinite, (0..<1).contains(x), (0..<1).contains(y) else { return }
             for (monitorID,c) in canvases { c.remoteCursor = monitorID == id ? NSPoint(x:x,y:y) : nil }
         case "pong": if let timestamp = object["time"] as? Double { latency = (Date().timeIntervalSince1970-timestamp)*1000 }
-        case "error": statusLabel.stringValue = object["message"] as? String ?? "Server reported an error."; if object["code"] as? String == "authentication" { ready = false }
+        case "error": statusLabel.stringValue = object["message"] as? String ?? "The computer reported an error."; if object["code"] as? String == "authentication" { ready = false }
         case "stats": break
         default: break
         }
     }
     private func refreshMonitorButtons() {
+        monitorStack.orientation = .vertical; monitorStack.alignment = .leading; monitorStack.spacing = 14
         for v in monitorStack.arrangedSubviews { monitorStack.removeArrangedSubview(v); v.removeFromSuperview() }
         monitorButtons = []
-        monitorStack.addArrangedSubview(label("MONITORS"))
         for (i,m) in monitors.enumerated() {
-            let b = NSButton(checkboxWithTitle:m.label,target:self,action:#selector(monitorAction(_:))); b.tag = i; b.state = selected.contains(m.id) ? .on : .off; b.toolTip = "\(m.width) × \(m.height) native pixels · \(m.id)"; monitorStack.addArrangedSubview(b); monitorButtons.append(b)
+            let b = NSButton(checkboxWithTitle:m.label,target:self,action:#selector(monitorAction(_:))); b.tag = i; b.state = selected.contains(m.id) ? .on : .off; b.toolTip = "\(m.width) × \(m.height) native pixels"; monitorStack.addArrangedSubview(b); monitorButtons.append(b)
         }
-        monitorStack.addArrangedSubview(button("All",#selector(allMonitorsAction)))
+        monitorStack.addArrangedSubview(button("Select all displays",#selector(allMonitorsAction)))
+        updateToolbar()
     }
     @objc private func monitorAction(_ sender:NSButton) {
         guard monitors.indices.contains(sender.tag) else { return }; releaseInput()
@@ -233,7 +482,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
         }
     }
     private func rebuildCanvases() {
-        guard resolutionFitsBudget(resolution) else { for canvas in canvases.values { canvas.removeFromSuperview() }; canvases.removeAll(); statusLabel.stringValue = "Choose fewer monitors to stay within the viewer memory limit."; return }
+        guard resolutionFitsBudget(resolution) else { for canvas in canvases.values { canvas.removeFromSuperview() }; canvases.removeAll(); statusLabel.stringValue = "Choose fewer displays to stay within the viewer memory limit."; return }
         let ids = Set(selectedMonitors.map(\.id))
         for (id,canvas) in canvases where !ids.contains(id) { canvas.removeFromSuperview(); canvases.removeValue(forKey:id) }
         for monitor in selectedMonitors {
@@ -265,14 +514,18 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
             canvas.frame = CGRect(x:(x+(slotWidth-canvas.pixelSize.width)/2)*zoom,y:(maxHeight-canvas.pixelSize.height)/2*zoom,width:canvas.pixelSize.width*zoom,height:canvas.pixelSize.height*zoom)
             x += slotWidth+12
         }
-        desktop.frame = CGRect(x:0,y:0,width:max(scroll.contentSize.width,(x > 0 ? x-12 : 0)*zoom),height:max(scroll.contentSize.height,maxHeight*zoom))
+        let renderedWidth = (x > 0 ? x-12 : 0)*zoom, renderedHeight = maxHeight*zoom
+        let offsetX = max(0,(scroll.contentSize.width-renderedWidth)/2), offsetY = max(0,(scroll.contentSize.height-renderedHeight)/2)
+        for canvas in canvases.values { canvas.frame.origin.x += offsetX; canvas.frame.origin.y += offsetY }
+        desktop.frame = CGRect(x:0,y:0,width:max(scroll.contentSize.width,renderedWidth),height:max(scroll.contentSize.height,renderedHeight))
+        updateToolbar()
         zoomLabel.stringValue = autoFit ? "Fit \(Int(zoom*100))%" : "\(Int(zoom*100))%"
     }
     @objc private func settingsAction() {
-        releaseInput(); bandwidthField.stringValue = String(cap); validateResolution(); rebuildCanvases()
+        releaseInput(); bandwidthField.stringValue = String(cap); syncSettings(); validateResolution(); rebuildCanvases()
         if audioButton.state != .on || paused { audio.stop() }
         if demo { for (index,m) in selectedMonitors.enumerated() { canvases[m.id]?.demoImage(index+1) } }
-        scheduleSubscription()
+        updateToolbar(); scheduleSubscription()
     }
     @objc private func fitAction() { autoFit = true; layoutCanvases(); scheduleSubscription() }
     @objc private func fitMonitorAction() {
@@ -352,8 +605,10 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
     func windowDidMiniaturize(_ notification:Notification) { releaseInput(); audio.stop(); scheduleSubscription(immediate:true) }
     func windowDidDeminiaturize(_ notification:Notification) { scheduleSubscription(immediate:true) }
     func windowDidResignKey(_ notification:Notification) { releaseInput() }
-    func windowShouldClose(_ sender:NSWindow) -> Bool { NSApp.terminate(nil); return false }
+    func windowShouldClose(_ sender:NSWindow) -> Bool { if sender === window { disconnect(); return false }; NSApp.terminate(nil); return false }
     func prepareToQuit(_ completion:@escaping()->Void) {
+        connectionAttempt = UUID(); connecting = false
+        if activationInFlight { pendingQuit = completion; transport.disconnect(); audio.stop(); osc.stop(); statsTimer?.invalidate(); return }
         releaseInput(); transport.disconnect(); audio.stop(); osc.stop(); statsTimer?.invalidate()
         if let transaction = zeroTierTransaction {
             zeroTierTransaction = nil
@@ -363,11 +618,19 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
         } else { RunLoop.main.perform(inModes:[.default,.modalPanel,.eventTracking],block:completion) }
     }
     private func reloadPresets() {
+        updatingSavedTable = true
+        savedRows = presets.presets.map { ($0.id,$0.name,$0.host) }
+        if screenshotFixture { savedRows = [("preview-editing","Editing Mac","editing-mac.local"),("preview-studio","Studio Mac","studio-mac.local")] }
+        savedTable.reloadData(); emptySavedLabel.isHidden = !savedRows.isEmpty
+        if screenshotFixture { savedTable.selectRowIndexes(IndexSet(integer:0),byExtendingSelection:false) }
+        updatingSavedTable = false
         presetPopup.removeAllItems(); presetPopup.addItem(withTitle:"Saved connections")
         for p in presets.presets { presetPopup.addItem(withTitle:p.name); presetPopup.lastItem?.representedObject = p.id }
     }
+    @objc private func savedConnectionAction(_ sender:NSButton) { if let id = sender.identifier?.rawValue { _ = recallPreset(id,connect:false) } }
     @objc private func savePresetAction() {
-        let alert = NSAlert(); alert.messageText = "Save connection and view"; alert.informativeText = "Stores the server, selected screens, picture settings, view controls, and any ZeroTier policy. Passwords can be stored separately in your macOS Keychain."
+        activePopover?.close()
+        let alert = NSAlert(); alert.messageText = "Save connection and view"; alert.informativeText = "Stores the computer, selected displays, picture settings, view controls, and any ZeroTier settings. Passwords can be stored separately in your macOS Keychain."
         let name = NSTextField(string:hostField.stringValue.isEmpty ? "Studio connection" : hostField.stringValue); name.frame = NSRect(x:0,y:36,width:350,height:24)
         let remember = NSButton(checkboxWithTitle:"Save password in macOS Keychain",target:nil,action:nil); remember.frame = NSRect(x:0,y:0,width:350,height:24)
         let container = NSView(frame:NSRect(x:0,y:0,width:350,height:65)); container.addSubview(name); container.addSubview(remember); alert.accessoryView = container
@@ -390,13 +653,13 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
         fpsPopup.selectItem(at:[5,10,15,30,60].firstIndex(of:p.fps) ?? 2); bandwidthField.stringValue = String(p.bandwidthKbps)
         autoFit = p.zoom == 0; zoom = p.zoom > 0 ? clamp(p.zoom,0.05,4) : 1; followButton.state = p.follow ? .on : .off; viewOnlyButton.state = p.viewOnly ? .on : .off
         audioButton.state = .off; pauseButton.state = .off; zeroTierNetwork = p.zeroTierNetwork; zeroTierManaged = p.zeroTierManaged ?? []
-        if p.fullScreen != (window?.styleMask.contains(.fullScreen) ?? false) { window?.toggleFullScreen(nil) }
+        pendingFullScreen = p.fullScreen
         statusLabel.stringValue = "Loaded \(p.name)."; if connect { connectAction() }; return true
     }
     private func savePassword(_ password:String,preset:String) {
         let query: [String:Any] = [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:"studio.upgrade.remote.viewer",kSecAttrAccount as String:preset]
         SecItemDelete(query as CFDictionary); var item = query; item[kSecValueData as String] = Data(password.utf8); item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        if SecItemAdd(item as CFDictionary,nil) != errSecSuccess { statusLabel.stringValue = "Preset saved; Keychain password could not be stored." }
+        if SecItemAdd(item as CFDictionary,nil) != errSecSuccess { statusLabel.stringValue = "Connection saved; its password could not be stored in Keychain." }
     }
     private func loadPassword(preset:String) -> String? {
         let query: [String:Any] = [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:"studio.upgrade.remote.viewer",kSecAttrAccount as String:preset,kSecReturnData as String:true,kSecMatchLimit as String:kSecMatchLimitOne]
@@ -410,15 +673,15 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
         case "/su/remote/state/get":
             osc.reply(peer,value:jsonString(["version":1,"sessionId":sessionID,"connected":ready,"host":hostField.stringValue,"displays":selectedMonitors.map(\.id),"resolution":resolution.rawValue,"color":color,"zoom":zoom,"panMode":followButton.state == .on ? "follow" : "manual","paused":paused,"audio":audioButton.state == .on,"viewOnly":viewOnlyButton.state == .on,"fullscreen":window?.styleMask.contains(.fullScreen) ?? false]) ?? "{}")
         case "/su/remote/connect":
-            guard let value = firstString(), !value.isEmpty else { error("Expected saved preset name/id or host"); return }
+            guard let value = firstString(), !value.isEmpty else { error("Expected a saved connection name or computer address"); return }
             if !recallPreset(value,connect:true) { if ready { disconnect() }; hostField.stringValue = value; connectAction() }
         case "/su/remote/disconnect": disconnect()
-        case "/su/remote/preset/recall": if let id = firstString(), recallPreset(id,connect:false) {} else { error("Unknown preset") }
+        case "/su/remote/preset/recall": if let id = firstString(), recallPreset(id,connect:false) {} else { error("Unknown saved connection") }
         case "/su/remote/monitors/select":
-            let ids = m.arguments.compactMap { $0 as? String }; guard ids.count == m.arguments.count, Set(ids).isSubset(of:Set(monitors.map(\.id))) else { error("Unknown monitor or invalid arguments"); return }
+            let ids = m.arguments.compactMap { $0 as? String }; guard ids.count == m.arguments.count, Set(ids).isSubset(of:Set(monitors.map(\.id))) else { error("Unknown display or invalid arguments"); return }
             releaseInput(); selected = Set(ids); refreshMonitorButtons(); validateResolution(); rebuildCanvases(); scheduleSubscription()
         case "/su/remote/resolution":
-            guard let value = firstString(), let r = Resolution(rawValue:value), let index = Resolution.allCases.firstIndex(of:r), selectedMonitors.allSatisfy(r.supports), resolutionFitsBudget(r), r != .native else { error("Unsupported resolution for the selected monitors"); return }
+            guard let value = firstString(), let r = Resolution(rawValue:value), let index = Resolution.allCases.firstIndex(of:r), selectedMonitors.allSatisfy(r.supports), resolutionFitsBudget(r), r != .native else { error("Unsupported resolution for the selected displays"); return }
             resolutionPopup.selectItem(at:index); settingsAction()
         case "/su/remote/color":
             guard let value = firstString(), let i = ["full","color256","rgb565","gray16"].firstIndex(of:value) else { error("Unsupported color mode"); return }; colorPopup.selectItem(at:i); settingsAction()
@@ -427,12 +690,13 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
         case "/su/remote/pan/mode": guard let mode = firstString(), ["follow","manual"].contains(mode) else { error("Expected follow or manual"); return }; followButton.state = mode == "follow" ? .on : .off
         case "/su/remote/paused": _ = toggle(pauseButton)
         case "/su/remote/viewonly": _ = toggle(viewOnlyButton)
-        case "/su/remote/audio": if audioButton.isEnabled { _ = toggle(audioButton) } else { error("Server audio is unavailable") }
+        case "/su/remote/audio": if audioButton.isEnabled { _ = toggle(audioButton) } else { error("Computer audio is unavailable") }
         case "/su/remote/fullscreen": guard let n = m.arguments.first as? Int, n == 0 || n == 1 else { error("Expected 0 or 1"); return }; if (n == 1) != (window?.styleMask.contains(.fullScreen) ?? false) { fullscreenAction() }
         default: error("Unknown OSC action")
         }
     }
     private func runZeroTier(_ request:[String:Any],completion:@escaping([String:Any])->Void) {
+        if let testZeroTier { testZeroTier(request,completion); return }
         guard let json = jsonString(request), let executable = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("su-zerotier"), FileManager.default.isExecutableFile(atPath:executable.path) else { completion(["ok":false,"error":"ZeroTier helper is not included in this build."]); return }
         zeroTierQueue.async {
             let process = Process(); process.executableURL = executable; let input = Pipe(), output = Pipe(), errors = Pipe(); process.standardInput = input; process.standardOutput = output; process.standardError = errors
@@ -451,10 +715,10 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
     private func showZeroTier(_ result:[String:Any]) {
         zeroTierStatus = result
         let networks = result["networks"] as? [[String:Any]] ?? []
-        let alert = NSAlert(); alert.messageText = "ZeroTier connection policy"
+        let alert = NSAlert(); alert.messageText = "ZeroTier connection settings"
         let available = result["ok"] as? Bool == true
         let status = available ? ((result["online"] as? Bool == true) ? "ZeroTier is online." : "ZeroTier is installed but offline.") : (result["message"] as? String ?? result["error"] as? String ?? "The local ZeroTier service is unavailable or its token cannot be read.")
-        alert.informativeText = status + "\nChoose a network for this preset. Only checked networks below may be temporarily left; their original settings will be restored when you disconnect. Other networks are untouched."
+        alert.informativeText = status + "\nChoose a network for this saved connection. Only checked networks below may be temporarily left; their original settings will be restored when you disconnect. Other networks are untouched."
         let container = NSView(frame:NSRect(x:0,y:0,width:540,height:220+min(8,networks.count)*28))
         let desiredLabel = label("REQUIRED NETWORK ID (blank disables automatic switching)"); desiredLabel.frame = NSRect(x:0,y:container.frame.height-24,width:530,height:22); container.addSubview(desiredLabel)
         let desired = NSTextField(string:zeroTierNetwork ?? ""); desired.placeholderString = "16 hexadecimal characters"; desired.frame = NSRect(x:0,y:container.frame.height-56,width:530,height:24); container.addSubview(desired)
@@ -465,7 +729,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
         }
         let text = NSTextField(wrappingLabelWithString:"Exclusivity applies when you click Connect or recall this saved connection. Check only networks this app should manage. A checked network with the required ID stays joined. Hover over a network to see its addresses.\n\nPending recovery transactions: \((result["pendingTransactions"] as? [Any])?.count ?? 0)")
         text.frame = NSRect(x:0,y:5,width:530,height:135); text.font = .systemFont(ofSize:12); container.addSubview(text); alert.accessoryView = container
-        alert.addButton(withTitle:"Use for this preset"); alert.addButton(withTitle:"Cancel")
+        alert.addButton(withTitle:"Use for this connection"); alert.addButton(withTitle:"Cancel")
         let pending = result["pendingTransactions"] as? [[String:Any]] ?? []
         if !pending.isEmpty { alert.addButton(withTitle:"Recover previous changes…") }
         let response = alert.runModal()
@@ -475,7 +739,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
         guard id.isEmpty || id.range(of:"^[0-9a-f]{16}$",options:.regularExpression) != nil else { statusLabel.stringValue = "ZeroTier network IDs must contain 16 hexadecimal characters."; return }
         zeroTierNetwork = id.isEmpty ? nil : id
         zeroTierManaged = checkboxes.filter { $0.state == .on }.compactMap { $0.identifier?.rawValue }
-        statusLabel.stringValue = "ZeroTier policy selected. Save the preset to keep it."
+        statusLabel.stringValue = "ZeroTier settings selected. Save the connection to keep them."
     }
     private func showZeroTierRecovery(_ pending:[[String:Any]]) {
         let alert = NSAlert(); alert.messageText = "Recover ZeroTier changes"
@@ -497,29 +761,91 @@ final class ViewerController: NSWindowController, NSWindowDelegate {
             else { let error = NSAlert(); error.messageText = "ZeroTier recovery needs attention"; error.informativeText = result["message"] as? String ?? "The helper could not complete recovery."; error.runModal() }
         }
     }
+    func runUIRegression(report:String) {
+        testing = true
+        var checks:[String:Bool] = [:]
+        configureScreenshot(stage:"session",appearance:"light",minimum:true,popover:nil)
+        checks["separate_session_window"] = window?.isVisible == true && !connectionsWindow.isVisible
+        if let canvas = canvases.values.first {
+            window?.makeFirstResponder(canvas); pressedKeys.insert(65); physicalKeys[0] = 65; pointerButtons = 1
+            window?.makeFirstResponder(nil)
+            checks["focus_releases_input"] = pressedKeys.isEmpty && physicalKeys.isEmpty && pointerButtons == 0
+        }
+        allowControlButton.state = .off; allowControlAction(); checks["allow_control_inverts_view_only"] = viewOnlyButton.state == .on && canvases.values.allSatisfy { $0.viewOnly }
+        allowControlButton.state = .on; allowControlAction()
+        bandwidthLimitField.stringValue = "2.5"; bandwidthAction(); checks["mbps_maps_to_kbps"] = cap == 2500
+        bandwidthLimitField.stringValue = "Automatic"; bandwidthAction(); checks["automatic_bandwidth"] = cap == 0
+        panningPopup.selectItem(at:1); panningAction(); checks["panning_action"] = followButton.state == .on
+        allMonitorsAction(); resolutionPopup.selectItem(at:4); settingsAction(); checks["common_resolution_limit"] = resolution == .fhd && resolutionPopup.item(at:4)?.isEnabled == false
+        setZoom(0.5); checks["zoom_action"] = !autoFit && zoom == 0.5; fitAction(); checks["fit_action"] = autoFit
+        window?.appearance = NSAppearance(named:.darkAqua); checks["dark_theme_switch"] = window?.effectiveAppearance.bestMatch(from:[.aqua,.darkAqua]) == .darkAqua
+        window?.appearance = nil; checks["automatic_theme_restored"] = window?.appearance == nil
+        disconnect(); checks["disconnect_returns_to_connections"] = connectionsWindow.isVisible && window?.isVisible == false
+        hostField.stringValue = "synthetic.local"; portField.stringValue = "0"; connectAction(); checks["invalid_port_keeps_setup"] = !connecting && connectionsWindow.isVisible
+        portField.stringValue = "5920"; passwordField.stringValue = "synthetic-password"; zeroTierNetwork = "0123456789abcdef"
+        var activationCompletion: (([String:Any])->Void)?
+        var restoreCalls = 0, transportCalls = 0
+        var connectedHost = "", connectedPort = 0
+        testTransportConnect = { host,port,_ in transportCalls += 1; connectedHost = host; connectedPort = port }
+        testZeroTier = { request,completion in
+            if request["action"] as? String == "activate" { activationCompletion = completion }
+            else if request["action"] as? String == "restore" { restoreCalls += 1; completion(["ok":true]) }
+            else { completion(["ok":true]) }
+        }
+        connectAction(); checks["activation_pending"] = connecting && activationInFlight
+        connectAction(); activationCompletion?(["ok":true,"transactionId":"synthetic-canceled"])
+        checks["cancel_restores_without_connecting"] = transportCalls == 0 && restoreCalls == 1 && !connecting && !activationInFlight && connectButton.isEnabled
+        hostField.stringValue = "before-change.local"; connectAction(); hostField.stringValue = "after-change.local"; portField.stringValue = "5999"
+        activationCompletion?(["ok":true,"transactionId":"synthetic-completed"])
+        checks["connection_uses_attempt_snapshot"] = transportCalls == 1 && connectedHost == "before-change.local" && connectedPort == 5920
+        receive(["type":"error","code":"authentication","message":"Incorrect password"],data:nil); didDisconnect()
+        checks["authentication_error_keeps_setup"] = !ready && !connecting && connectionsWindow.isVisible && statusLabel.stringValue == "Incorrect password"
+        testZeroTier = nil; testTransportConnect = nil; zeroTierNetwork = nil
+        let result:[String:Any] = ["passed":checks.values.allSatisfy { $0 },"checks":checks]
+        if let data = try? JSONSerialization.data(withJSONObject:result,options:[.prettyPrinted,.sortedKeys]) { try? data.write(to:URL(fileURLWithPath:report)) }
+        NSApp.terminate(nil)
+    }
     func runIntegration(port:Int,password:String,fingerprint:String,report:String,snapshot:String) {
         testing = true; transport.testFingerprint = fingerprint
+        let startedInConnections = connectionsWindow.isVisible && !(window?.isVisible ?? false)
         hostField.stringValue = "127.0.0.1"; portField.stringValue = String(port); passwordField.stringValue = password; connectAction()
         DispatchQueue.main.asyncAfter(deadline:.now()+2) {
             self.allMonitorsAction()
         }
         DispatchQueue.main.asyncAfter(deadline:.now()+5) {
             self.exportSnapshot(path:snapshot)
-            let result:[String:Any] = ["connected":self.ready,"revision":self.revision,"framesDecoded":self.totalFrames,"framesRejected":self.rejectedFrames,"selected":self.selectedMonitors.map(\.id),"bytesReceived":self.bytesReceived,"status":self.statusLabel.stringValue]
+            var result:[String:Any] = ["startedInConnections":startedInConnections,"sessionWindowVisible":self.window?.isVisible ?? false,"toolbarControlsEnabled":self.toolbarDisplays?.isEnabled == true && self.toolbarZoom?.isEnabled == true && self.toolbarSettings?.isEnabled == true,"connectionsWindowVisible":self.connectionsWindow.isVisible,"connected":self.ready,"revision":self.revision,"framesDecoded":self.totalFrames,"framesRejected":self.rejectedFrames,"selected":self.selectedMonitors.map(\.id),"bytesReceived":self.bytesReceived,"status":self.statusLabel.stringValue]
+            self.disconnect()
+            result["returnedToConnections"] = self.connectionsWindow.isVisible && !(self.window?.isVisible ?? false)
             if let data = try? JSONSerialization.data(withJSONObject:result,options:[.prettyPrinted,.sortedKeys]) { try? data.write(to:URL(fileURLWithPath:report)) }
-            self.disconnect(); NSApp.terminate(nil)
+            NSApp.terminate(nil)
         }
     }
     func showDemo() {
-        demo = true; ready = true; monitors = [RemoteMonitor(id:"demo-1",name:"Studio controls",width:3840,height:2160,number:1),RemoteMonitor(id:"demo-2",name:"Video edit",width:2560,height:1440,number:2),RemoteMonitor(id:"demo-3",name:"Playback",width:1920,height:1080,number:3)]
+        demo = true; ready = true; presentSession(name:"Editing Mac"); monitors = [RemoteMonitor(id:"demo-1",name:"Studio controls",width:3840,height:2160,number:1),RemoteMonitor(id:"demo-2",name:"Video edit",width:2560,height:1440,number:2),RemoteMonitor(id:"demo-3",name:"Playback",width:1920,height:1080,number:3)]
         selected = ["demo-1","demo-3"]; resolutionPopup.selectItem(at:1); colorPopup.selectItem(at:0); refreshMonitorButtons(); validateResolution(); rebuildCanvases()
         for monitor in selectedMonitors { canvases[monitor.id]?.demoImage(monitor.number) }
-        hostField.stringValue = "Demo · no server connection"; statusLabel.stringValue = "Demo only · no capture, input, audio, or network connection to a server."; metricsLabel.stringValue = "2 selected · HD · one session"; connectButton.title = "Connect"
+        hostField.stringValue = "Preview · no computer connection"; statusLabel.stringValue = "Demo only · no capture, input, audio, or network connection to a computer."; metricsLabel.stringValue = "2 selected · HD · one session"; connectButton.title = "Connect"
+    }
+    func configureScreenshot(stage:String,appearance:String,minimum:Bool,popover:String?) {
+        testing = true; screenshotFixture = true
+        let theme = NSAppearance(named:appearance == "dark" ? .darkAqua : .aqua)
+        window?.appearance = theme; connectionsWindow.appearance = theme
+        if minimum { window?.setContentSize(NSSize(width:660,height:400)); connectionsWindow.setContentSize(NSSize(width:680,height:472)) }
+        hostField.stringValue = "editing-mac.local"; passwordField.stringValue = ""; statusLabel.stringValue = ""; reloadPresets()
+        if stage == "session" { showDemo() } else { ready = false; presentConnections() }; NSApp.activate(ignoringOtherApps:true)
+        if let popover {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.2) {
+                if popover == "settings", let b = self.toolbarSettings { self.settingsPopoverAction(b) }
+                if popover == "displays", let b = self.toolbarDisplays { self.displaysAction(b) }
+            }
+        }
     }
     func exportSnapshot(path:String) {
-        guard let content = window?.contentView else { return }
+        let targetWindow = activePopover?.isShown == true ? activePopover?.contentViewController?.view.window : (ready ? window : connectionsWindow)
+        guard let content = targetWindow?.contentView?.superview else { return }
         content.layoutSubtreeIfNeeded(); layoutCanvases()
-        content.window?.appearance?.performAsCurrentDrawingAppearance {
+        (targetWindow?.effectiveAppearance ?? NSAppearance.currentDrawing()).performAsCurrentDrawingAppearance {
         NSColor.windowBackgroundColor.setFill()
         if let bitmap = content.bitmapImageRepForCachingDisplay(in:content.bounds) {
             if let context = NSGraphicsContext(bitmapImageRep:bitmap) { NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = context; NSColor.windowBackgroundColor.setFill(); content.bounds.fill(); NSGraphicsContext.restoreGraphicsState() }

@@ -29,17 +29,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification:Notification) {
         let main = NSMenu()
         let appItem = NSMenuItem(); main.addItem(appItem); let appMenu = NSMenu(); appItem.submenu = appMenu
-        appMenu.addItem(withTitle:"About Studio Upgrade Remote",action:#selector(NSApplication.orderFrontStandardAboutPanel(_:)),keyEquivalent:"")
-        appMenu.addItem(.separator()); appMenu.addItem(withTitle:"Quit Studio Upgrade Remote",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q")
+        appMenu.addItem(withTitle:"About Portlight",action:#selector(NSApplication.orderFrontStandardAboutPanel(_:)),keyEquivalent:"")
+        appMenu.addItem(.separator()); appMenu.addItem(withTitle:"Quit Portlight",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q")
         let editItem = NSMenuItem(); main.addItem(editItem); let edit = NSMenu(title:"Edit"); editItem.submenu = edit
         for (title,action,key) in [("Cut","cut:","x"),("Copy","copy:","c"),("Paste","paste:","v"),("Select All","selectAll:","a")] { edit.addItem(withTitle:title,action:Selector(action),keyEquivalent:key) }
+        let viewItem = NSMenuItem(); main.addItem(viewItem); let viewMenu = NSMenu(title:"View"); viewItem.submenu = viewMenu
+        for (title,action,key) in [("Fit Displays","fitAction","0"),("Actual Size","actualSizeAction","1"),("Zoom In","zoomInAction","+"),("Zoom Out","zoomOutAction","-")] { viewMenu.addItem(withTitle:title,action:Selector(action),keyEquivalent:key) }
+        viewMenu.addItem(.separator())
+        let fullscreen = viewMenu.addItem(withTitle:"Enter Full Screen",action:#selector(NSWindow.toggleFullScreen(_:)),keyEquivalent:"f"); fullscreen.keyEquivalentModifierMask = [.command,.control]
         NSApp.mainMenu = main
-        let viewer = ViewerController(); self.viewer = viewer; viewer.showWindow(nil); NSApp.activate(ignoringOtherApps:true)
+        let viewer = ViewerController(); self.viewer = viewer; for item in viewMenu.items where item.action != #selector(NSWindow.toggleFullScreen(_:)) { item.target = viewer }; viewer.showWindow(nil); NSApp.activate(ignoringOtherApps:true)
+        if let i = CommandLine.arguments.firstIndex(of:"--ui-check"), CommandLine.arguments.count > i+1 {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.2) { viewer.runUIRegression(report:CommandLine.arguments[i+1]) }
+        }
         if let i = CommandLine.arguments.firstIndex(of:"--integration-test"), CommandLine.arguments.count > i+4 {
             let password = readLine() ?? ""
             viewer.runIntegration(port:Int(CommandLine.arguments[i+1]) ?? 15922,password:password,fingerprint:CommandLine.arguments[i+2],report:CommandLine.arguments[i+3],snapshot:CommandLine.arguments[i+4])
         }
         if CommandLine.arguments.contains("--demo") { viewer.showDemo() }
+        if let i = CommandLine.arguments.firstIndex(of:"--ui-snapshot"), CommandLine.arguments.count > i+1 {
+            func option(_ name:String,_ fallback:String) -> String { if let j = CommandLine.arguments.firstIndex(of:name), CommandLine.arguments.count > j+1 { return CommandLine.arguments[j+1] }; return fallback }
+            viewer.configureScreenshot(stage:CommandLine.arguments[i+1],appearance:option("--appearance","light"),minimum:option("--size","normal") == "minimum",popover:CommandLine.arguments.contains("--popover") ? option("--popover","") : nil)
+        }
         if let i = CommandLine.arguments.firstIndex(of:"--snapshot"), CommandLine.arguments.count > i+1 {
             DispatchQueue.main.asyncAfter(deadline:.now()+1) { viewer.exportSnapshot(path:CommandLine.arguments[i+1]); NSApp.terminate(nil) }
         }

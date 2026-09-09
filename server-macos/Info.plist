@@ -2,16 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>com.studioupgrade.suremote.server</string>
-<key>CFBundleName</key><string>SU Remote Server</string>
-<key>CFBundleDisplayName</key><string>SU Remote Server</string>
+<key>CFBundleName</key><string>Portlight Host</string>
+<key>CFBundleDisplayName</key><string>Portlight Host</string>
 <key>CFBundleExecutable</key><string>SURemoteServer</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.1.0</string>
-<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleShortVersionString</key><string>0.2.0</string>
+<key>CFBundleVersion</key><string>2</string>
+<key>CFBundleIconFile</key><string>Portlight</string>
 <key>LSMinimumSystemVersion</key><string>15.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
-<key>NSScreenCaptureUsageDescription</key><string>SU Remote shares only the monitors selected by your authenticated viewer, with optional system audio.</string>
-<key>NSAccessibilityUsageDescription</key><string>SU Remote lets your authenticated viewer control this Mac's keyboard and pointer.</string>
-<key>NSLocalNetworkUsageDescription</key><string>SU Remote accepts secure remote desktop connections over your local network or VPN.</string>
+<key>NSScreenCaptureUsageDescription</key><string>Portlight shares only the monitors selected by your authenticated viewer, with optional system audio.</string>
+<key>NSAccessibilityUsageDescription</key><string>Portlight lets your authenticated viewer control this Mac's keyboard and pointer.</string>
+<key>NSLocalNetworkUsageDescription</key><string>Portlight accepts secure remote desktop connections over your local network or VPN.</string>
 </dict></plist>

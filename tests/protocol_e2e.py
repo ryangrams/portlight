@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise a real secure SU Remote server using synthetic monitor fixture data."""
+"""Exercise a real secure Portlight host using synthetic monitor fixture data."""
 import argparse, asyncio, io, json, ssl, struct, time
 from collections import defaultdict
 import websockets
@@ -68,11 +68,12 @@ async def run(url,password):
         await client.subscription(2,[ids[0]],color='gray16')
         samples=await client.collect(2,{ids[0]},1)
         for header,payload in samples:
+            assert payload[:8] == b'\x89PNG\r\n\x1a\n' and payload[24:26] == bytes([4,0]), 'Grayscale must use packed 4-bit PNG'
             with Image.open(io.BytesIO(payload)) as im:
                 colors=im.convert('RGB').getcolors(im.width*im.height)
                 assert len(colors)<=16
                 assert all(r==g==b for _,(r,g,b) in colors)
-        results.append('Monitor switched within the same authenticated WebSocket; 16-shade grayscale verified')
+        results.append('Display switched within the same authenticated WebSocket; packed 4-bit, 16-shade grayscale verified')
         ack=await client.subscription(3,[ids[0],ids[2]])
         assert {d['id'] for d in ack['displays']}=={ids[0],ids[2]}
         for d in ack['displays']:assert d['width']<=1280 and d['height']<=720

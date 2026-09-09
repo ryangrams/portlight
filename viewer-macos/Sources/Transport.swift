@@ -44,13 +44,13 @@ final class RemoteTransport: NSObject, URLSessionDelegate, URLSessionWebSocketDe
             case .success(let message):
                 switch message {
                 case .string(let text):
-                    guard text.utf8.count <= 65536, let data = text.data(using:.utf8), let object = try? JSONSerialization.jsonObject(with:data) as? [String:Any] else { self.fail("Server sent invalid control data."); return }
+                    guard text.utf8.count <= 65536, let data = text.data(using:.utf8), let object = try? JSONSerialization.jsonObject(with:data) as? [String:Any] else { self.fail("The computer sent invalid control data."); return }
                     DispatchQueue.main.async { if self.generation == expected { self.onMessage?(object,nil); self.receive(socket,expected) } }
                     return
                 case .data(let data):
-                    guard data.count >= 4, data.count <= 32*1024*1024 else { self.fail("Server frame exceeded the message limit."); return }
+                    guard data.count >= 4, data.count <= 32*1024*1024 else { self.fail("A display update exceeded the message limit."); return }
                     let count = data.prefix(4).reduce(0) { ($0 << 8) | Int($1) }
-                    guard count <= 65536, count > 0, count + 4 <= data.count, let object = try? JSONSerialization.jsonObject(with:data.subdata(in:4..<4+count)) as? [String:Any] else { self.fail("Server sent an invalid frame header."); return }
+                    guard count <= 65536, count > 0, count + 4 <= data.count, let object = try? JSONSerialization.jsonObject(with:data.subdata(in:4..<4+count)) as? [String:Any] else { self.fail("The computer sent an invalid display update."); return }
                     let payload = data.subdata(in:4+count..<data.count)
                     // Run on the main queue before reading another frame; bounded decode/UI work provides backpressure.
                     DispatchQueue.main.async { if self.generation == expected { self.onMessage?(object,payload); self.receive(socket,expected) } }
@@ -71,7 +71,7 @@ final class RemoteTransport: NSObject, URLSessionDelegate, URLSessionWebSocketDe
     }
     func urlSession(_ session:URLSession,webSocketTask:URLSessionWebSocketTask,didCloseWith closeCode:URLSessionWebSocketTask.CloseCode,reason:Data?) {
         guard self.socket === webSocketTask else { return }
-        DispatchQueue.main.async { if !self.closing { self.onStatus?("Server closed the connection."); self.onDisconnect?() } }
+        DispatchQueue.main.async { if !self.closing { self.onStatus?("The computer closed the connection."); self.onDisconnect?() } }
     }
     func urlSession(_ session:URLSession,didReceive challenge:URLAuthenticationChallenge,completionHandler:@escaping(URLSession.AuthChallengeDisposition,URLCredential?)->Void) {
         guard self.session === session else { completionHandler(.cancelAuthenticationChallenge,nil); return }
@@ -89,8 +89,8 @@ final class RemoteTransport: NSObject, URLSessionDelegate, URLSessionWebSocketDe
             guard self.session === session else { completionHandler(.cancelAuthenticationChallenge,nil); return }
             NSApp.activate(ignoringOtherApps:true)
             let alert = NSAlert(); alert.alertStyle = changed ? .critical : .warning
-            alert.messageText = changed ? "Server identity changed" : "Trust this Studio Upgrade server?"
-            alert.informativeText = "\(identity)\n\nSHA-256 certificate fingerprint:\n\(fingerprint)\n\nCompare this fingerprint with the server's identity before trusting it. Your password has not been sent.\(changed ? "\n\nThe saved certificate differs. A reinstall or an unexpected server may cause this." : "")"
+            alert.messageText = changed ? "Computer identity changed" : "Trust this Portlight computer?"
+            alert.informativeText = "\(identity)\n\nSHA-256 certificate fingerprint:\n\(fingerprint)\n\nCompare this fingerprint with the computer’s identity before trusting it. Your password has not been sent.\(changed ? "\n\nThe saved certificate differs. A reinstall or an unexpected computer may cause this." : "")"
             alert.addButton(withTitle:"Cancel"); alert.addButton(withTitle:"Trust and Connect")
             if alert.runModal() == .alertSecondButtonReturn {
                 UserDefaults.standard.set(fingerprint,forKey:key); completionHandler(.useCredential,URLCredential(trust:trust))

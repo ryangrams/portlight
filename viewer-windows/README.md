@@ -1,29 +1,36 @@
-# SU Remote — native Windows viewer
+# Portlight for Windows
 
-Native Win32 viewer for Windows 10 and later. Built without a browser engine or third-party GUI runtime. Uses WinHTTP for encrypted WebSocket transport, WIC for image decoding, GDI for drawing, and waveOut for audio playback.
+Portlight by Studio Upgrade connects to Portlight Host on a Mac. It is a lightweight native Windows app, with builds for x86 (32-bit), x64, and ARM64. Windows 10 remains the minimum target. Existing SU Remote connections, trusted certificates, and OSC commands remain compatible.
 
-Build on macOS using `./build.sh`, which downloads the pinned LLVM-MinGW toolchain to a temporary cache if `LLVM_MINGW` is not supplied. Binaries are emitted in `dist/` for x86 (32-bit), x64, and ARM64.
+## Connect
 
-The application requests confirmation of the server's SHA-256 certificate fingerprint before sending the session password. Confirm it against the server's displayed fingerprint. An unexpected certificate change requires explicit approval. Passwords are never saved in connection presets.
+Keep `Portlight.exe` and `su-zerotier.exe` together. In **Connections**, choose a saved computer or enter its name/IP address and password, then select **Connect**. Verify the first connection's certificate fingerprint against Portlight Host. Passwords are never saved.
 
-OSC is bound to localhost UDP 19790; use `/su/remote/state/get` for state. There is no shell-command OSC endpoint. Windows Firewall is not changed by the app.
+**Advanced** contains the port (5920 by default) and optional ZeroTier network policy. A saved connection can activate its chosen network and pause only the network IDs explicitly listed under **Networks to pause**. Save the policy before using it. Disconnect restores the previous network state; Network Status also exposes interrupted-operation recovery.
 
-Current builds require validation on real Windows computers; compiling a binary is not equivalent to testing its behavior on Windows.
+After authentication, the computer's picture fills the window. The compact toolbar contains **Displays**, **Fit/zoom**, **Audio**, and **Settings**. The back button disconnects and returns to Connections. No computer addresses, password fields, or permanent settings sidebar appear over the viewing area.
 
-## Using the viewer
+- **Displays:** choose one display, several, or all, without reconnecting.
+- **Fit/zoom:** fit the selected displays, use 100%, zoom in/out, or enter fullscreen. F11 toggles fullscreen; Escape exits it. Ctrl+mouse-wheel changes local zoom.
+- **Audio:** optional computer audio, off by default. Current preview audio uses 192 kbps.
+- **Settings:** HD/FHD/QHD/UHD resolution, color mode, optimization for Automatic/Text & controls/Video, frame rate, bandwidth limit in Mbps, pointer-following panning, pause, and Allow control. Blank/zero bandwidth means Automatic. A Native fallback is available for displays smaller than HD.
+- **Saved connection:** name the computer/view in Settings and select Save. The saved row then appears in Connections.
 
-Keep `SU Remote Viewer.exe` and `su-zerotier.exe` together. Enter the Mac's address (default port 5920) and server password. Verify the first-connection certificate fingerprint against the server, then connect. Click monitor names to toggle them; several monitors share one encrypted session. Unselected monitors are unsubscribed, and zoomed-out-of-view regions are paused.
+Only selected displays and visible regions are requested. The app supports PNG/JPEG tiles and the Host's packed 4-bit grayscale PNGs. H.264 decoding is not yet implemented.
 
-Choose HD/FHD/QHD/UHD before transmission; unavailable sizes are gray. Native is a fallback only for displays smaller than HD. Desktop uses sharp lossless tiles, Motion uses JPEG tiles, and Adaptive lets the server choose. This viewer currently advertises PNG/JPEG; hardware H.264 decoding is not implemented. Audio is an optional 192-kbps mono preview and starts off.
+Portlight uses Segoe UI, native Windows title-bar controls, system light/dark appearance, high-contrast colors, and DPI-aware layout. Appearance changes do not recolor remote images. Controls respond immediately and use no ornamental animation, including when reduced motion is enabled.
 
-Fit, 100%, minus/plus, and Ctrl+mouse-wheel change local zoom. Use scroll bars to pan, or enable pointer-following panning. F11 enters/exits fullscreen, and Escape exits fullscreen. Clicking the canvas gives it keyboard control. View-only and Pause release held input.
+Settings retain the original location for compatibility:
+`%LOCALAPPDATA%\Studio Upgrade\SU Remote\viewer.json`.
 
-Name and save presets with the editable preset selector. Passwords are not saved. For ZeroTier, enter the desired network ID and comma-separated IDs of only the networks the preset may suspend, then save and approve that concrete policy. Connecting activates it, disconnecting restores it. Network Status shows pending recovery and offers Restore, Keep current networks, or Cancel. Unrelated networks are not managed.
+OSC listens on localhost UDP 19790. Existing `/su/remote/...` addresses are unchanged; see `../PROTOCOL.md`. No general command-execution endpoint is exposed.
 
-Settings and trusted fingerprints are stored under `%LOCALAPPDATA%\Studio Upgrade\SU Remote\viewer.json`.
+## Build and validate
 
-## Validation
+Run `./build.sh` on macOS. It verifies and caches a pinned LLVM-MinGW toolchain, builds all three architectures, and places complete app folders in `dist/x86`, `dist/x64`, and `dist/arm64`. The Portlight icon and version metadata are embedded in each executable.
 
-`./test.sh` runs portable framing/allocation tests and 10,000 malformed messages under address/undefined-behavior sanitizers on macOS. Each native executable supports `--self-test`, returning JSON and a nonzero exit code on failure; it exercises Windows WIC decoding, certificate SHA-256 hashing, secure endpoint parsing, OSC bounds, zoom/pan mapping, and memory limits.
+`./test.sh` runs framing/allocation tests and 10,000 malformed messages under sanitizers. Each executable supports `--self-test` for native WIC PNG/grayscale decoding, certificate hashing, secure address parsing, OSC bounds, coordinate mapping, and allocation limits.
 
-For CI, `--integration-test` uses a loopback-only TLS fixture. Set `SU_REMOTE_TEST_HOST` to `127.0.0.1:port`, `SU_REMOTE_TEST_FINGERPRINT` to its exact uppercase colon-separated SHA-256 leaf fingerprint, `SU_REMOTE_TEST_PASSWORD` to its disposable password, and `SU_REMOTE_TEST_REPORT` to the JSON output path. Fixture monitors are `fixture-1`, `fixture-2`, and `fixture-3`. The viewer selects the first monitor, switches to the third at two seconds, selects first+third at four seconds, and exits at seven seconds. It never accepts an unverified certificate in this mode. The fixture runner is `../tests/windows_integration.py`.
+`Portlight.exe --visual-test OUTPUT_DIRECTORY` is a bounded screenshot test. It uses synthetic saved computers and remote content, opens no network/OSC listener, writes Connections/Viewing/Settings screenshots in light and dark appearances (including small windows), and exits with `visual-report.json`. It neither loads nor saves real connection settings.
+
+`--integration-test` connects only to a loopback TLS fixture. Supply `SU_REMOTE_TEST_HOST=127.0.0.1:port`, `SU_REMOTE_TEST_FINGERPRINT` (exact uppercase colon-separated SHA-256 fingerprint), `SU_REMOTE_TEST_PASSWORD`, and `SU_REMOTE_TEST_REPORT`. It verifies real decoding, one-connection display switching, and the Connections → Viewing → Connections transition. Run through `../tests/windows_integration.py`.

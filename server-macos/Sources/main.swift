@@ -24,38 +24,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             security=try ServerSecurity(directory:directory)
             if fixture, args.contains("--password-stdin"), let password=readLine() { try security.setPassword(password) }
             else if fixture,let password=ProcessInfo.processInfo.environment["SU_REMOTE_TEST_PASSWORD"] { try security.setPassword(password) }
-            server=RemoteServer(security:security,fixture:fixture)
+            var packetWindow=32
+            if fixture,let i=args.firstIndex(of:"--fixture-inflight"),i+1<args.count,let value=Int(args[i+1]) { packetWindow=value }
+            server=RemoteServer(security:security,fixture:fixture,fixtureDense:args.contains("--fixture-dense"),packetWindow:packetWindow)
             server.onStatus={ [weak self] message in self?.status=message;self?.refreshMenu();if self?.fixture == true { print(message);fflush(stdout) } }
             server.onConnection={ [weak self] in self?.refreshMenu() }
             statusItem=NSStatusBar.system.statusItem(withLength:NSStatusItem.variableLength)
-            statusItem.button?.image=NSImage(systemSymbolName:"display.2",accessibilityDescription:"SU Remote Server")
-            statusItem.button?.toolTip="SU Remote Server"
+            statusItem.button?.image=NSImage(systemSymbolName:"display.2",accessibilityDescription:"Portlight Host")
+            statusItem.button?.toolTip="Portlight Host"
             refreshMenu()
             if fixture || args.contains("--start") || UserDefaults.standard.bool(forKey:"startServerOnLaunch") { start() }
             else if !security.hasPassword { showSetup() }
-        } catch { alert("SU Remote could not start",error.localizedDescription); NSApp.terminate(nil) }
+        } catch { alert("Portlight could not start",error.localizedDescription); NSApp.terminate(nil) }
     }
     func applicationWillTerminate(_ notification: Notification) { server?.stop() }
     func refreshMenu() {
         guard statusItem != nil else { return }
         let menu=NSMenu()
-        menu.addItem(withTitle:"SU Remote · Studio Upgrade",action:nil,keyEquivalent:"")
+        menu.addItem(withTitle:"Portlight · Studio Upgrade",action:nil,keyEquivalent:"")
         menu.addItem(withTitle:status,action:nil,keyEquivalent:"")
         menu.addItem(withTitle:server?.activeSession != nil ? "1 viewer connected" : "No viewer connected",action:nil,keyEquivalent:"")
         menu.addItem(.separator())
-        add(menu,server?.listener == nil ? "Start Server" : "Stop Server",server?.listener == nil ? #selector(start) : #selector(stop))
+        add(menu,server?.listener == nil ? "Start Sharing" : "Stop Sharing",server?.listener == nil ? #selector(start) : #selector(stop))
         add(menu,"Connection Details…",#selector(details))
         add(menu,"Set Password…",#selector(changePassword))
         add(menu,"Change Port…",#selector(changePort))
         menu.addItem(.separator())
         add(menu,"Screen Recording Permission…",#selector(screenPermission))
         add(menu,"Remote Control Permission…",#selector(controlPermission))
-        add(menu,"Identify Monitors",#selector(identify))
+        add(menu,"Identify Displays",#selector(identify))
         let login=NSMenuItem(title:"Launch at Login",action:#selector(toggleLogin),keyEquivalent:""); login.target=self;login.state=SMAppService.mainApp.status == .enabled ? .on:.off;menu.addItem(login)
-        let auto=NSMenuItem(title:"Start Server When App Opens",action:#selector(toggleStart),keyEquivalent:"");auto.target=self;auto.state=UserDefaults.standard.bool(forKey:"startServerOnLaunch") ? .on:.off;menu.addItem(auto)
+        let auto=NSMenuItem(title:"Start Sharing When App Opens",action:#selector(toggleStart),keyEquivalent:"");auto.target=self;auto.state=UserDefaults.standard.bool(forKey:"startServerOnLaunch") ? .on:.off;menu.addItem(auto)
         menu.addItem(.separator())
-        add(menu,"About SU Remote",#selector(about))
-        add(menu,"Quit SU Remote Server",#selector(quit),"q")
+        add(menu,"About Portlight",#selector(about))
+        add(menu,"Quit Portlight Host",#selector(quit),"q")
         statusItem.menu=menu
     }
     private func add(_ menu:NSMenu,_ title:String,_ action:Selector,_ key:String="") { let item=NSMenuItem(title:title,action:action,keyEquivalent:key);item.target=self;menu.addItem(item) }
@@ -63,7 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !security.hasPassword { changePassword(); if !security.hasPassword { return } }
         do { try server.start(port:port)
             if fixture { print("TLS SHA256 \(security.fingerprint)");fflush(stdout) }
-        } catch { status="Stopped";refreshMenu();alert("Could not start server",error.localizedDescription) }
+        } catch { status="Stopped";refreshMenu();alert("Could not start sharing",error.localizedDescription) }
     }
     @objc func stop() { server.stop() }
     @objc func quit() { NSApp.terminate(nil) }
@@ -77,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     @objc func changePort() {
-        let dialog=NSAlert();dialog.messageText="Connection port";dialog.informativeText="Changing the port stops the server. Start it again when ready."
+        let dialog=NSAlert();dialog.messageText="Connection port";dialog.informativeText="Changing the port stops sharing. Start sharing again when ready."
         let field=NSTextField(frame:NSRect(x:0,y:0,width:260,height:28));field.stringValue=String(port);dialog.accessoryView=field
         dialog.addButton(withTitle:"Save");dialog.addButton(withTitle:"Cancel");NSApp.activate(ignoringOtherApps:true)
         if dialog.runModal() == .alertFirstButtonReturn {
@@ -89,8 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do { if security.fingerprint.isEmpty { try security.loadIdentity() } }
         catch { alert("Certificate unavailable",error.localizedDescription);return }
         let names=Host.current().addresses.filter{!$0.contains(":") && $0 != "127.0.0.1"}.joined(separator:", ")
-        let details="Server: \(Host.current().localizedName ?? "Mac")\nAddresses: \(names)\nPort: \(port)\n\nTLS certificate SHA-256 fingerprint:\n\(security.fingerprint)\n\nVerify this fingerprint in the viewer before trusting this Mac."
-        let dialog=NSAlert();dialog.messageText="Connect to SU Remote";dialog.informativeText=details
+        let details="Computer: \(Host.current().localizedName ?? "Mac")\nAddresses: \(names)\nPort: \(port)\n\nTLS certificate SHA-256 fingerprint:\n\(security.fingerprint)\n\nVerify this fingerprint in the viewer before trusting this Mac."
+        let dialog=NSAlert();dialog.messageText="Connect to Portlight";dialog.informativeText=details
         dialog.addButton(withTitle:"Done");dialog.addButton(withTitle:"Copy Details");NSApp.activate(ignoringOtherApps:true)
         if dialog.runModal() == .alertSecondButtonReturn { NSPasteboard.general.clearContents();NSPasteboard.general.setString(details,forType:.string) }
     }
@@ -118,8 +120,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         DispatchQueue.main.asyncAfter(deadline:.now()+3) { [weak self] in self?.identifyWindows.forEach{$0.close()};self?.identifyWindows=[] }
     }
-    @objc func about() { alert("SU Remote · Studio Upgrade","Private LAN/VPN remote desktop.\n\nVersion 0.1.0 preview\nOne viewer per server. Mac login-window access is not enabled in this preview.\n\nOpen source under the MIT license.") }
-    func showSetup() { alert("Welcome to SU Remote Server","Use the display icon in the menu bar to set a password, grant Screen Recording and Accessibility permissions, then start the server. Your Mac's screen resolution stays unchanged.") }
+    @objc func about() { alert("Portlight · Studio Upgrade","Private LAN/VPN remote desktop.\n\nVersion 0.2.0 preview\nOne viewer per computer. Mac login-window access is not enabled in this preview.\n\nOpen source under the MIT license.") }
+    func showSetup() { alert("Welcome to Portlight Host","Use the display icon in the menu bar to set a password, grant Screen Recording and Accessibility permissions, then start sharing. Your Mac's screen resolution stays unchanged.") }
     func alert(_ title:String,_ message:String) { if fixture { fputs("\(title): \(message)\n",stderr);fflush(stderr);return }; let alert=NSAlert();alert.messageText=title;alert.informativeText=message;NSApp.activate(ignoringOtherApps:true);alert.runModal() }
 }
 

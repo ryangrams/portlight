@@ -2,7 +2,7 @@
 import os,sys,subprocess,tempfile,socket,time,json
 from pathlib import Path
 root=Path(__file__).resolve().parent.parent
-exe=root/'server-macos/build/SU Remote Server.app/Contents/MacOS/SURemoteServer'
+exe=root/'server-macos/build/Portlight Host.app/Contents/MacOS/SURemoteServer'
 with tempfile.TemporaryDirectory(prefix='su-remote-fixture-') as state:
     with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
     with open(Path(state)/'server.log','w+') as log:

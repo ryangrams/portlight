@@ -15,18 +15,26 @@ jobs:
           python-version: '3.12'
       - name: Build apps and run native Mac tests
         run: ./build.sh
+      - name: Verify grayscale pixels and odd crop boundaries
+        run: ./benchmarks/validate_encoder.sh
       - name: Test encrypted subscriptions against synthetic monitors
         run: |
           python3 -m venv .test-venv
           .test-venv/bin/pip install -r tests/requirements.txt
           .test-venv/bin/python tests/run_e2e.py
           .test-venv/bin/python viewer-macos/test-integration.py
+          .test-venv/bin/python viewer-macos/test-appearance.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: macos-design-review
+          path: viewer-macos/build/design-review/
       - name: Package previews
         run: ./package.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: preview-packages
-          path: release/0.1.0-alpha.1/
+          path: release/0.2.0-alpha.1/
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-binaries
@@ -64,7 +72,7 @@ jobs:
         env:
           TEST_ARCH: ${{ matrix.arch }}
         run: |
-          $viewer = Join-Path $PWD "binaries/$env:TEST_ARCH/SU Remote Viewer.exe"
+          $viewer = Join-Path $PWD "binaries/$env:TEST_ARCH/Portlight.exe"
           $process = Start-Process -FilePath $viewer -ArgumentList '--self-test' -Wait -PassThru -RedirectStandardOutput viewer-self-test.json -RedirectStandardError viewer-self-test-errors.txt
           Get-Content viewer-self-test.json
           Get-Content viewer-self-test-errors.txt
@@ -77,5 +85,21 @@ jobs:
           TEST_ARCH: ${{ matrix.arch }}
         run: |
           python -m pip install -r tests/requirements.txt
-          python tests/windows_integration.py "binaries/$env:TEST_ARCH/SU Remote Viewer.exe"
+          python tests/windows_integration.py "binaries/$env:TEST_ARCH/Portlight.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Native Windows integration failed' }
+      - name: Capture native light and dark layouts
+        shell: pwsh
+        env:
+          TEST_ARCH: ${{ matrix.arch }}
+        run: |
+          $viewer = Join-Path $PWD "binaries/$env:TEST_ARCH/Portlight.exe"
+          $output = Join-Path $PWD 'design-review'
+          $process = Start-Process -FilePath $viewer -ArgumentList @('--visual-test', $output) -PassThru
+          if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Visual capture timed out' }
+          $process.Refresh()
+          if ($process.ExitCode -ne 0) { throw "Visual capture failed: $($process.ExitCode)" }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: windows-design-review-${{ matrix.arch }}
+          path: design-review/

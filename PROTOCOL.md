@@ -1,4 +1,4 @@
-# SU Remote protocol v1
+# Portlight protocol v1
 
 All components implement this exact contract. One secure WebSocket connection per viewer/server session. Server default TCP port **5920**, path `/remote`. TLS with generated server identity. Viewer shows/trusts SHA256 leaf fingerprint before sending password; persist trust per host:port, reject changed identity pending new explicit approval. Fresh implementation, no copied GPL source. Use platform TLS. Passwords only inside verified TLS; server stores PBKDF2-HMAC-SHA256 salted verifier (100000+ iterations), no plaintext logs.
 

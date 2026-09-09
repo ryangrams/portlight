@@ -36,6 +36,8 @@ struct Subscription {
 final class RemoteServer {
     let security: ServerSecurity
     let fixture: Bool
+    let fixtureDense: Bool
+    let packetWindow: Int
     var listener: NWListener?
     var sessions: [UUID:RemoteSession] = [:]
     weak var activeSession: RemoteSession?
@@ -44,7 +46,7 @@ final class RemoteServer {
     var onConnection: (() -> Void)?
     var failedAttempts: [Date] = []
     private var topologyTimer: Timer?
-    init(security: ServerSecurity, fixture: Bool) { self.security=security; self.fixture=fixture }
+    init(security: ServerSecurity, fixture: Bool, fixtureDense: Bool = false, packetWindow: Int = 32) { self.security=security; self.fixture=fixture; self.fixtureDense=fixture && fixtureDense; self.packetWindow=fixture ? max(1,min(32,packetWindow)) : 32 }
     func start(port: UInt16) throws {
         guard listener == nil else { return }
         try security.loadIdentity()
@@ -117,6 +119,9 @@ final class RemoteSession {
     private var authenticationTimer: Timer?
     private var fixtureFrame=0
     private var frameCounter=0
+    private var skippedFrames=0
+    private var encodedInputs=0
+    private var encodingTotals=EncodingMetrics()
     private var bytesSent=0
     private var lastStats=Date()
     private var lastCursorTime=Date.distantPast
@@ -178,13 +183,13 @@ final class RemoteSession {
     }
     private func error(_ code: String,_ message: String) { send(["type":"error","code":code,"message":message]) }
     private func welcome(type: String = "welcome") {
-        send(["type":type,"version":1,"serverName":server.fixture ? "SU Remote Test Server" : (Host.current().localizedName ?? "Mac"),"sessionId":id.uuidString,
+        send(["type":type,"version":1,"serverName":server.fixture ? "Portlight Test Host" : (Host.current().localizedName ?? "Mac"),"sessionId":id.uuidString,
               "displays":server.displays.map { d -> [String:Any] in var o=d.json; o["primary"] = d.index == 1; return o },
               "capabilities":["codecs":["png","jpeg"],"audio":server.fixture ? [] : ["mulaw"],"colorModes":["gray16","color256","rgb565","full"],"maxViewers":1]])
     }
     func topologyChanged() {
         startingTask?.cancel(); stopCapture(); input.releaseAll(); subscription.ids=[]; outbound=[]; pendingBytes=0; welcome(type:"displays")
-        error("topology","Displays changed. Select monitors again.")
+        error("topology","Displays changed. Select displays again.")
     }
     private func handle(_ object: [String:Any]) {
         guard let type=object["type"] as? String else { error("message","Missing message type"); return }
@@ -239,7 +244,7 @@ final class RemoteSession {
         tokens=Double(max(65536,bandwidth*125)); lastTokenTime=Date()
         var response: [String:Any]=["type":"subscribed","revision":revision,"displays":selected.map { d -> [String:Any] in
             let s=scaledSize(d,preset:actualPreset); return ["id":d.id,"width":s.0,"height":s.1] },"paused":next.paused,"audio":next.audio,"resolution":actualPreset]
-        if actualPreset != preset { response["notice"]="Resolution limited to \(actualPreset.uppercased()) by the selected monitors." }
+        if actualPreset != preset { response["notice"]="Resolution limited to \(actualPreset.uppercased()) by the selected displays." }
         send(response) { [weak self] in self?.startCapture(revision:revision) }
     }
     private func stopCapture() {
@@ -270,12 +275,12 @@ final class RemoteSession {
                     try await stream.start()
                     if Task.isCancelled || self.subscription.revision != revision { await stream.stop(); return }
                 }
-            } catch { if self.subscription.revision == revision { self.error("capture","Screen capture failed. Allow SU Remote Server in Screen & System Audio Recording, then reconnect. \(error.localizedDescription)") } }
+            } catch { if self.subscription.revision == revision { self.error("capture","Screen capture failed. Allow Portlight Host in Screen & System Audio Recording, then reconnect. \(error.localizedDescription)") } }
         }
     }
     private func acceptImage(_ image: CGImage,display: DisplayInfo,revision: Int) {
-        guard !closed,subscription.revision == revision,!subscription.paused,subscription.ids.contains(display.id),
-              !processing.contains(display.id),subscription.regions[display.id]?.isEmpty != true,displaySequences[display.id]?.isEmpty != false,pendingBytes < 16*1024*1024 else { return }
+        guard !closed,subscription.revision == revision,!subscription.paused,subscription.ids.contains(display.id),subscription.regions[display.id]?.isEmpty != true else { return }
+        guard !processing.contains(display.id),displaySequences[display.id]?.isEmpty != false,pendingBytes < 16*1024*1024 else { skippedFrames+=1;return }
         processing.insert(display.id)
         let encoder=encoders[display.id] ?? TileEncoder(); encoders[display.id]=encoder
         let settings=subscription
@@ -284,9 +289,16 @@ final class RemoteSession {
         let quality=settings.bandwidth > 0 && settings.bandwidth < 1500 ? 0.4 : 0.7
         encodeQueue.async { [weak self] in
             let tiles=encoder.encode(image,region:region,color:settings.color,quality:quality,motion:motion,auto:settings.quality == "auto")
+            let timings=encoder.metrics
             DispatchQueue.main.async {
                 guard let self,self.subscription.revision == revision,self.subscription.ids.contains(display.id),!self.subscription.paused,!self.closed else { return }
                 self.processing.remove(display.id)
+                self.encodedInputs+=1
+                self.encodingTotals.totalMilliseconds+=timings.totalMilliseconds
+                self.encodingTotals.rasterMilliseconds+=timings.rasterMilliseconds
+                self.encodingTotals.quantizeMilliseconds+=timings.quantizeMilliseconds
+                self.encodingTotals.diffMilliseconds+=timings.diffMilliseconds
+                self.encodingTotals.codecMilliseconds+=timings.codecMilliseconds
                 if !tiles.isEmpty { self.frameCounter+=1 }
                 for tile in tiles {
                     self.sequence+=1
@@ -314,8 +326,10 @@ final class RemoteSession {
     }
     private func drain() {
         guard !closed else { return }
-        while !outbound.isEmpty,inFlight.count < 4 {
+        while !outbound.isEmpty,inFlight.count < server.packetWindow {
             let next=outbound[0]
+            let inFlightBytes=inFlight.values.reduce(0) { $0+$1.0 }
+            guard inFlight.isEmpty || inFlightBytes+next.0.count <= 2*1024*1024 else { break }
             guard subscription.bandwidth == 0 || tokens >= Double(next.0.count) || (tokens > 0 && next.0.count > max(65536,subscription.bandwidth*125)) else { break }
             outbound.removeFirst(); tokens-=Double(next.0.count)
             inFlight[next.1]=(next.0.count,Date()); transmit(next.0,sequence:next.1)
@@ -341,7 +355,7 @@ final class RemoteSession {
             for id in subscription.ids {
                 guard let d=server.displays.first(where:{$0.id == id}) else { continue }
                 let s=scaledSize(d,preset:subscription.preset)
-                if let image=fixtureImage(display:d,width:s.0,height:s.1,frame:fixtureFrame) { acceptImage(image,display:d,revision:subscription.revision) }
+                if let image=fixtureImage(display:d,width:s.0,height:s.1,frame:fixtureFrame,denseMotion:server.fixtureDense) { acceptImage(image,display:d,revision:subscription.revision) }
             }
         }
         if !server.fixture,!subscription.paused,now.timeIntervalSince(lastCursorTime) >= 0.05 {
@@ -355,8 +369,11 @@ final class RemoteSession {
             }
         }
         if now.timeIntervalSince(lastStats) >= 1 {
-            send(["type":"stats","bytesSent":bytesSent,"fps":frameCounter,"streamingDisplays":subscription.paused ? [] : subscription.ids,"audio":subscription.audio,"quality":subscription.quality,"resolution":subscription.preset])
-            frameCounter=0;lastStats=now
+            let count=Double(max(1,encodedInputs))
+            send(["type":"stats","bytesSent":bytesSent,"fps":frameCounter,"streamingDisplays":subscription.paused ? [] : subscription.ids,"audio":subscription.audio,"quality":subscription.quality,"resolution":subscription.preset,
+                  "encodedInputs":encodedInputs,"framesSkippedBackpressure":skippedFrames,"pendingImageBytes":pendingBytes,"inFlightFrames":inFlight.count,
+                  "meanEncodeMs":encodingTotals.totalMilliseconds/count,"meanRasterMs":encodingTotals.rasterMilliseconds/count,"meanQuantizeMs":encodingTotals.quantizeMilliseconds/count,"meanDiffMs":encodingTotals.diffMilliseconds/count,"meanCodecMs":encodingTotals.codecMilliseconds/count])
+            frameCounter=0;skippedFrames=0;encodedInputs=0;encodingTotals=EncodingMetrics();lastStats=now
 
         }
     }

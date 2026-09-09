@@ -1,0 +1,774 @@
+{
+  "framesPerRun" : 12,
+  "height" : 1080,
+  "jpegQuality" : 0.69999999999999996,
+  "machine" : "Apple M3 Max",
+  "note" : "Same precomputed source frames for all modes. Encoder CPU\/wall time excludes workload generation, capture, network, viewer decode. Payload includes PNG\/JPEG only.",
+  "os" : "Version 15.7.3 (Build 24G419)",
+  "policy" : "desktop",
+  "repeats" : 3,
+  "results" : [
+    {
+      "cpuMsPerFrame" : 8.4004166666666649,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 13515.5,
+      "meanCodecMs" : 5.299649333333333,
+      "meanDiffMs" : 0.56502652777777762,
+      "meanQuantizeMs" : 1.9685719166666671,
+      "meanRasterMs" : 0.5714478055555553,
+      "meanTilesPerInputFrame" : 2.8333333333333335,
+      "medianMs" : 5.1926670000000001,
+      "mode" : "gray16",
+      "p95Ms" : 42.952167000000003,
+      "payloadBytes" : 162186,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "text_ui"
+    },
+    {
+      "cpuMsPerFrame" : 1.8314999999999999,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 6023.583333333333,
+      "meanCodecMs" : 0.28121061111111112,
+      "meanDiffMs" : 0.070956000000000005,
+      "meanQuantizeMs" : 1.3008796111111114,
+      "meanRasterMs" : 0.18828697222222218,
+      "meanTilesPerInputFrame" : 2.8333333333333335,
+      "medianMs" : 1.752167,
+      "mode" : "gray16",
+      "p95Ms" : 2.8635410000000001,
+      "payloadBytes" : 72283,
+      "pngFormats" : [
+        "depth4-type0"
+      ],
+      "variant" : "optimized",
+      "workload" : "text_ui"
+    },
+    {
+      "cpuMsPerFrame" : 12.072833333333328,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 14740.25,
+      "meanCodecMs" : 5.6245624722222214,
+      "meanDiffMs" : 0.56895949999999995,
+      "meanQuantizeMs" : 5.6904954166666668,
+      "meanRasterMs" : 0.18579049999999994,
+      "meanTilesPerInputFrame" : 2.8333333333333335,
+      "medianMs" : 8.671208,
+      "mode" : "color256",
+      "p95Ms" : 48.875708000000003,
+      "payloadBytes" : 176883,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "text_ui"
+    },
+    {
+      "cpuMsPerFrame" : 8.0702500000000015,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 14740.25,
+      "meanCodecMs" : 5.5620116111111129,
+      "meanDiffMs" : 0.50446638888888884,
+      "meanQuantizeMs" : 1.7731979444444448,
+      "meanRasterMs" : 0.19453005555555553,
+      "meanTilesPerInputFrame" : 2.8333333333333335,
+      "medianMs" : 4.7305000000000001,
+      "mode" : "color256",
+      "p95Ms" : 44.446874999999999,
+      "payloadBytes" : 176883,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "text_ui"
+    },
+    {
+      "cpuMsPerFrame" : 15.130583333333318,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 19788.75,
+      "meanCodecMs" : 5.3437696944444442,
+      "meanDiffMs" : 0.59496058333333335,
+      "meanQuantizeMs" : 9.0325104722222207,
+      "meanRasterMs" : 0.19080788888888889,
+      "meanTilesPerInputFrame" : 2.8333333333333335,
+      "medianMs" : 11.97575,
+      "mode" : "rgb565",
+      "p95Ms" : 50.210875000000001,
+      "payloadBytes" : 237465,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "text_ui"
+    },
+    {
+      "cpuMsPerFrame" : 11.729083333333335,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 19788.75,
+      "meanCodecMs" : 5.3760358333333329,
+      "meanDiffMs" : 0.56918633333333324,
+      "meanQuantizeMs" : 5.6213796388888895,
+      "meanRasterMs" : 0.1891180833333333,
+      "meanTilesPerInputFrame" : 2.8333333333333335,
+      "medianMs" : 8.5173749999999995,
+      "mode" : "rgb565",
+      "p95Ms" : 46.752749999999999,
+      "payloadBytes" : 237465,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "text_ui"
+    },
+    {
+      "cpuMsPerFrame" : 5.9260000000000232,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 22410.166666666668,
+      "meanCodecMs" : 5.3019653611111117,
+      "meanDiffMs" : 0.43920944444444437,
+      "meanQuantizeMs" : 0.00265163888888889,
+      "meanRasterMs" : 0.18852549999999998,
+      "meanTilesPerInputFrame" : 2.8333333333333335,
+      "medianMs" : 2.7158340000000001,
+      "mode" : "full",
+      "p95Ms" : 41.259749999999997,
+      "payloadBytes" : 268922,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "text_ui"
+    },
+    {
+      "cpuMsPerFrame" : 5.9353333333333298,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 22410.166666666668,
+      "meanCodecMs" : 5.3171296111111115,
+      "meanDiffMs" : 0.44533208333333341,
+      "meanQuantizeMs" : 0.0022778611111111124,
+      "meanRasterMs" : 0.1890705555555556,
+      "meanTilesPerInputFrame" : 2.8333333333333335,
+      "medianMs" : 2.7687909999999998,
+      "mode" : "full",
+      "p95Ms" : 41.206167000000001,
+      "payloadBytes" : 268922,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "text_ui"
+    },
+    {
+      "cpuMsPerFrame" : 5.9238333333333131,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 6984.75,
+      "meanCodecMs" : 3.3811169444444444,
+      "meanDiffMs" : 0.43950569444444443,
+      "meanQuantizeMs" : 1.9440983611111109,
+      "meanRasterMs" : 0.18984733333333331,
+      "meanTilesPerInputFrame" : 0.083333333333333329,
+      "medianMs" : 2.6345000000000001,
+      "mode" : "gray16",
+      "p95Ms" : 42.566749999999999,
+      "payloadBytes" : 83817,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "static_ui"
+    },
+    {
+      "cpuMsPerFrame" : 1.6856666666666593,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 3392.75,
+      "meanCodecMs" : 0.13693286111111108,
+      "meanDiffMs" : 0.070799722222222236,
+      "meanQuantizeMs" : 1.294366972222222,
+      "meanRasterMs" : 0.1852905,
+      "meanTilesPerInputFrame" : 0.083333333333333329,
+      "medianMs" : 1.567917,
+      "mode" : "gray16",
+      "p95Ms" : 3.077458,
+      "payloadBytes" : 40713,
+      "pngFormats" : [
+        "depth4-type0"
+      ],
+      "variant" : "optimized",
+      "workload" : "static_ui"
+    },
+    {
+      "cpuMsPerFrame" : 10.030999999999976,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 7668.083333333333,
+      "meanCodecMs" : 3.585863388888888,
+      "meanDiffMs" : 0.57686911111111128,
+      "meanQuantizeMs" : 5.672400555555555,
+      "meanRasterMs" : 0.20249536111111113,
+      "meanTilesPerInputFrame" : 0.083333333333333329,
+      "medianMs" : 6.4888329999999996,
+      "mode" : "color256",
+      "p95Ms" : 48.351292000000001,
+      "payloadBytes" : 92017,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "static_ui"
+    },
+    {
+      "cpuMsPerFrame" : 6.0080833333332846,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 7668.083333333333,
+      "meanCodecMs" : 3.5841493333333339,
+      "meanDiffMs" : 0.45234372222222219,
+      "meanQuantizeMs" : 1.7687476388888888,
+      "meanRasterMs" : 0.20333683333333333,
+      "meanTilesPerInputFrame" : 0.083333333333333329,
+      "medianMs" : 2.4393750000000001,
+      "mode" : "color256",
+      "p95Ms" : 44.808250000000001,
+      "payloadBytes" : 92017,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "static_ui"
+    },
+    {
+      "cpuMsPerFrame" : 13.257499999999995,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 10149.166666666666,
+      "meanCodecMs" : 3.4284490555555545,
+      "meanDiffMs" : 0.58253016666666668,
+      "meanQuantizeMs" : 9.0180415833333321,
+      "meanRasterMs" : 0.21119683333333331,
+      "meanTilesPerInputFrame" : 0.083333333333333329,
+      "medianMs" : 9.9047909999999995,
+      "mode" : "rgb565",
+      "p95Ms" : 49.972833000000001,
+      "payloadBytes" : 121790,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "static_ui"
+    },
+    {
+      "cpuMsPerFrame" : 9.8380833333333584,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 10149.166666666666,
+      "meanCodecMs" : 3.3928171111111105,
+      "meanDiffMs" : 0.5158576388888888,
+      "meanQuantizeMs" : 5.649590250000001,
+      "meanRasterMs" : 0.20384255555555558,
+      "meanTilesPerInputFrame" : 0.083333333333333329,
+      "medianMs" : 6.4325000000000001,
+      "mode" : "rgb565",
+      "p95Ms" : 46.056708,
+      "payloadBytes" : 121790,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "static_ui"
+    },
+    {
+      "cpuMsPerFrame" : 3.9195833333333465,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 11694.333333333334,
+      "meanCodecMs" : 3.4038402222222217,
+      "meanDiffMs" : 0.34707049999999995,
+      "meanQuantizeMs" : 0.0012825000000000004,
+      "meanRasterMs" : 0.17320141666666666,
+      "meanTilesPerInputFrame" : 0.083333333333333329,
+      "medianMs" : 0.53662500000000002,
+      "mode" : "full",
+      "p95Ms" : 40.774749999999997,
+      "payloadBytes" : 140332,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "static_ui"
+    },
+    {
+      "cpuMsPerFrame" : 3.926666666666708,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 11694.333333333334,
+      "meanCodecMs" : 3.3819456666666667,
+      "meanDiffMs" : 0.37911691666666675,
+      "meanQuantizeMs" : 0.0015671111111111114,
+      "meanRasterMs" : 0.17959952777777777,
+      "meanTilesPerInputFrame" : 0.083333333333333329,
+      "medianMs" : 0.54379200000000005,
+      "mode" : "full",
+      "p95Ms" : 40.563457999999997,
+      "payloadBytes" : 140332,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "static_ui"
+    },
+    {
+      "cpuMsPerFrame" : 44.022500000000001,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 73585.666666666672,
+      "meanCodecMs" : 41.689729194444439,
+      "meanDiffMs" : 0.012616888888888893,
+      "meanQuantizeMs" : 1.9068958333333339,
+      "meanRasterMs" : 0.42020483333333347,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 44.293416999999998,
+      "mode" : "gray16",
+      "p95Ms" : 45.113332999999997,
+      "payloadBytes" : 883028,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "gradients"
+    },
+    {
+      "cpuMsPerFrame" : 3.1766666666666796,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 27274,
+      "meanCodecMs" : 1.7634213055555552,
+      "meanDiffMs" : 0.0091839166666666666,
+      "meanQuantizeMs" : 1.2593171666666665,
+      "meanRasterMs" : 0.2300845277777778,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 3.2853330000000001,
+      "mode" : "gray16",
+      "p95Ms" : 3.7154579999999999,
+      "payloadBytes" : 327288,
+      "pngFormats" : [
+        "depth4-type0"
+      ],
+      "variant" : "optimized",
+      "workload" : "gradients"
+    },
+    {
+      "cpuMsPerFrame" : 47.570666666666654,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 65947.583333333328,
+      "meanCodecMs" : 41.854111111111102,
+      "meanDiffMs" : 0.014240722222222217,
+      "meanQuantizeMs" : 5.583753472222222,
+      "meanRasterMs" : 0.1963991944444444,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 47.477541000000002,
+      "mode" : "color256",
+      "p95Ms" : 48.429417000000001,
+      "payloadBytes" : 791371,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "gradients"
+    },
+    {
+      "cpuMsPerFrame" : 43.898833333333293,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 65947.583333333328,
+      "meanCodecMs" : 42.087462916666667,
+      "meanDiffMs" : 0.015309055555555553,
+      "meanQuantizeMs" : 1.7600288888888891,
+      "meanRasterMs" : 0.19566327777777773,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 43.776541999999999,
+      "mode" : "color256",
+      "p95Ms" : 45.589084,
+      "payloadBytes" : 791371,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "gradients"
+    },
+    {
+      "cpuMsPerFrame" : 50.793333333333322,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 111003.83333333333,
+      "meanCodecMs" : 41.68493625,
+      "meanDiffMs" : 0.0075672499999999993,
+      "meanQuantizeMs" : 8.9459756111111108,
+      "meanRasterMs" : 0.19221650000000007,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 50.866124999999997,
+      "mode" : "rgb565",
+      "p95Ms" : 51.206583999999999,
+      "payloadBytes" : 1332046,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "gradients"
+    },
+    {
+      "cpuMsPerFrame" : 47.685333333333354,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 111003.83333333333,
+      "meanCodecMs" : 41.891849611111112,
+      "meanDiffMs" : 0.0071608333333333342,
+      "meanQuantizeMs" : 5.5941110833333338,
+      "meanRasterMs" : 0.19441205555555557,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 47.643416999999999,
+      "mode" : "rgb565",
+      "p95Ms" : 48.404708999999997,
+      "payloadBytes" : 1332046,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "gradients"
+    },
+    {
+      "cpuMsPerFrame" : 42.701333333333331,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 184167.08333333334,
+      "meanCodecMs" : 42.465167833333325,
+      "meanDiffMs" : 0.0056376666666666667,
+      "meanQuantizeMs" : 0.0028773611111111127,
+      "meanRasterMs" : 0.18864349999999999,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 42.801749999999998,
+      "mode" : "full",
+      "p95Ms" : 43.378915999999997,
+      "payloadBytes" : 2210005,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "gradients"
+    },
+    {
+      "cpuMsPerFrame" : 42.774333333333324,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 184167.08333333334,
+      "meanCodecMs" : 42.572093749999993,
+      "meanDiffMs" : 0.005299805555555555,
+      "meanQuantizeMs" : 0.002931694444444446,
+      "meanRasterMs" : 0.19812388888888888,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 42.955666999999998,
+      "mode" : "full",
+      "p95Ms" : 43.820332999999998,
+      "payloadBytes" : 2210005,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "gradients"
+    },
+    {
+      "cpuMsPerFrame" : 79.523916666666722,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 2220310.3333333335,
+      "meanCodecMs" : 77.276091499999993,
+      "meanDiffMs" : 0.0059363333333333343,
+      "meanQuantizeMs" : 1.8935127222222219,
+      "meanRasterMs" : 0.45269674999999993,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 79.728583999999998,
+      "mode" : "gray16",
+      "p95Ms" : 80.860083000000003,
+      "payloadBytes" : 26643724,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "noise"
+    },
+    {
+      "cpuMsPerFrame" : 18.070916666666825,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 948278.83333333337,
+      "meanCodecMs" : 16.551796277777779,
+      "meanDiffMs" : 0.0090174166666666684,
+      "meanQuantizeMs" : 1.2938402499999997,
+      "meanRasterMs" : 0.18856244444444439,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 17.555333000000001,
+      "mode" : "gray16",
+      "p95Ms" : 23.069792,
+      "payloadBytes" : 11379346,
+      "pngFormats" : [
+        "depth4-type0"
+      ],
+      "variant" : "optimized",
+      "workload" : "noise"
+    },
+    {
+      "cpuMsPerFrame" : 87.910583333333264,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 2925092.6666666665,
+      "meanCodecMs" : 82.06838308333333,
+      "meanDiffMs" : 0.0062420277777777786,
+      "meanQuantizeMs" : 5.5798459999999999,
+      "meanRasterMs" : 0.19380316666666672,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 87.739374999999995,
+      "mode" : "color256",
+      "p95Ms" : 89.056832999999997,
+      "payloadBytes" : 35101112,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "noise"
+    },
+    {
+      "cpuMsPerFrame" : 83.788583333333236,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 2925092.6666666665,
+      "meanCodecMs" : 81.829824222222243,
+      "meanDiffMs" : 0.0063667500000000009,
+      "meanQuantizeMs" : 1.7518171111111116,
+      "meanRasterMs" : 0.19471069444444444,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 83.781915999999995,
+      "mode" : "color256",
+      "p95Ms" : 85.418458000000001,
+      "payloadBytes" : 35101112,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "noise"
+    },
+    {
+      "cpuMsPerFrame" : 165.97733333333349,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 5524440.666666667,
+      "meanCodecMs" : 157.37712263888889,
+      "meanDiffMs" : 0.0075509166666666676,
+      "meanQuantizeMs" : 8.8973437777777757,
+      "meanRasterMs" : 0.19668522222222226,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 166.01041699999999,
+      "mode" : "rgb565",
+      "p95Ms" : 169.37537499999999,
+      "payloadBytes" : 66293288,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "noise"
+    },
+    {
+      "cpuMsPerFrame" : 162.8892500000004,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 5524440.666666667,
+      "meanCodecMs" : 157.1868148333333,
+      "meanDiffMs" : 0.0070763611111111114,
+      "meanQuantizeMs" : 5.5868623055555577,
+      "meanRasterMs" : 0.28606477777777783,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 162.70675,
+      "mode" : "rgb565",
+      "p95Ms" : 164.99291700000001,
+      "payloadBytes" : 66293288,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "noise"
+    },
+    {
+      "cpuMsPerFrame" : 129.68966666666699,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 6240519.333333333,
+      "meanCodecMs" : 129.46360302777779,
+      "meanDiffMs" : 0.0067441111111111122,
+      "meanQuantizeMs" : 0.0033472777777777797,
+      "meanRasterMs" : 0.19896872222222223,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 129.16849999999999,
+      "mode" : "full",
+      "p95Ms" : 132.58425,
+      "payloadBytes" : 74886232,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "noise"
+    },
+    {
+      "cpuMsPerFrame" : 129.91650000000021,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 6240519.333333333,
+      "meanCodecMs" : 129.57530669444444,
+      "meanDiffMs" : 0.0066423611111111102,
+      "meanQuantizeMs" : 0.0040706388888888901,
+      "meanRasterMs" : 0.1957106111111111,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 129.45516699999999,
+      "mode" : "full",
+      "p95Ms" : 133.175083,
+      "payloadBytes" : 74886232,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "noise"
+    },
+    {
+      "cpuMsPerFrame" : 45.430416666666439,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 102953.75,
+      "meanCodecMs" : 42.916835666666664,
+      "meanDiffMs" : 0.006834527777777777,
+      "meanQuantizeMs" : 1.9084502222222224,
+      "meanRasterMs" : 0.47951622222222234,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 45.226542000000002,
+      "mode" : "gray16",
+      "p95Ms" : 47.527042000000002,
+      "payloadBytes" : 1235445,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "motion"
+    },
+    {
+      "cpuMsPerFrame" : 3.650166666666621,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 50012.833333333336,
+      "meanCodecMs" : 2.2063182777777772,
+      "meanDiffMs" : 0.0070752222222222232,
+      "meanQuantizeMs" : 1.2549490277777777,
+      "meanRasterMs" : 0.1846898888888889,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 3.6587909999999999,
+      "mode" : "gray16",
+      "p95Ms" : 3.8725830000000001,
+      "payloadBytes" : 600154,
+      "pngFormats" : [
+        "depth4-type0"
+      ],
+      "variant" : "optimized",
+      "workload" : "motion"
+    },
+    {
+      "cpuMsPerFrame" : 47.483166666666555,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 80219.833333333328,
+      "meanCodecMs" : 42.789895888888886,
+      "meanDiffMs" : 0.0068471388888888887,
+      "meanQuantizeMs" : 5.5849953888888901,
+      "meanRasterMs" : 0.19908561111111109,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 47.800708,
+      "mode" : "color256",
+      "p95Ms" : 52.141790999999998,
+      "payloadBytes" : 962638,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "motion"
+    },
+    {
+      "cpuMsPerFrame" : 44.205999999999676,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 80219.833333333328,
+      "meanCodecMs" : 42.763008027777779,
+      "meanDiffMs" : 0.0065081388888888888,
+      "meanQuantizeMs" : 1.7679756666666666,
+      "meanRasterMs" : 0.20496994444444444,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 44.222541999999997,
+      "mode" : "color256",
+      "p95Ms" : 46.064332999999998,
+      "payloadBytes" : 962638,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "motion"
+    },
+    {
+      "cpuMsPerFrame" : 52.582916666666556,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 88050.166666666672,
+      "meanCodecMs" : 43.126390111111121,
+      "meanDiffMs" : 0.0088992222222222198,
+      "meanQuantizeMs" : 9.1728392500000009,
+      "meanRasterMs" : 0.20539341666666666,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 52.062333000000002,
+      "mode" : "rgb565",
+      "p95Ms" : 55.886042000000003,
+      "payloadBytes" : 1056602,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "motion"
+    },
+    {
+      "cpuMsPerFrame" : 47.947000000000038,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 88050.166666666672,
+      "meanCodecMs" : 42.44708097222221,
+      "meanDiffMs" : 0.0068842499999999989,
+      "meanQuantizeMs" : 5.6405324166666677,
+      "meanRasterMs" : 0.20060761111111111,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 48.211125000000003,
+      "mode" : "rgb565",
+      "p95Ms" : 50.33475,
+      "payloadBytes" : 1056602,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "motion"
+    },
+    {
+      "cpuMsPerFrame" : 42.192000000000007,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 90062.5,
+      "meanCodecMs" : 42.168613361111106,
+      "meanDiffMs" : 0.0057014444444444439,
+      "meanQuantizeMs" : 0.0027986111111111124,
+      "meanRasterMs" : 0.19157641666666667,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 42.431041999999998,
+      "mode" : "full",
+      "p95Ms" : 44.145167000000001,
+      "payloadBytes" : 1080750,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "baseline",
+      "workload" : "motion"
+    },
+    {
+      "cpuMsPerFrame" : 42.281333333333393,
+      "frames" : 36,
+      "meanBytesPerInputFrame" : 90062.5,
+      "meanCodecMs" : 42.190596083333332,
+      "meanDiffMs" : 0.0061227500000000006,
+      "meanQuantizeMs" : 0.0032314166666666689,
+      "meanRasterMs" : 0.19952775,
+      "meanTilesPerInputFrame" : 36.75,
+      "medianMs" : 42.540958000000003,
+      "mode" : "full",
+      "p95Ms" : 43.390166999999998,
+      "payloadBytes" : 1080750,
+      "pngFormats" : [
+        "depth8-type2"
+      ],
+      "variant" : "optimized",
+      "workload" : "motion"
+    }
+  ],
+  "schema" : 1,
+  "width" : 1920
+}

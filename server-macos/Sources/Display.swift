@@ -30,7 +30,7 @@ func availableDisplays(fixture: Bool = false) -> [DisplayInfo] {
             let width: Int = i == 2 ? 1920 : 3840
             let height: Int = i == 2 ? 1080 : 2160
             let bounds = CGRect(x: CGFloat((i-1)*1920), y: 0, width: 1920, height: 1080)
-            result.append(DisplayInfo(id: "fixture-\(i)", cgID: UInt32(i), name: "Test Monitor \(i)", index: i, width: width, height: height, bounds: bounds))
+            result.append(DisplayInfo(id: "fixture-\(i)", cgID: UInt32(i), name: "Test Display \(i)", index: i, width: width, height: height, bounds: bounds))
         }
         return result
     }
@@ -41,7 +41,7 @@ func availableDisplays(fixture: Bool = false) -> [DisplayInfo] {
     return ids.prefix(Int(count)).enumerated().map { index, id in
         let screen = screens.first { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id }
         let mode = CGDisplayCopyDisplayMode(id)
-        return DisplayInfo(id: displayID(id), cgID: id, name: screen?.localizedName ?? "Monitor \(index+1)", index: index+1,
+        return DisplayInfo(id: displayID(id), cgID: id, name: screen?.localizedName ?? "Display \(index+1)", index: index+1,
             width: mode?.pixelWidth ?? CGDisplayPixelsWide(id), height: mode?.pixelHeight ?? CGDisplayPixelsHigh(id), bounds: CGDisplayBounds(id))
     }
 }

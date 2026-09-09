@@ -2,6 +2,10 @@
 
 This file distinguishes implemented behavior from real-machine acceptance testing. The synthetic fixtures never capture a real desktop or inject input.
 
+## Appearance and navigation
+
+Both native viewers provide a bounded synthetic screenshot mode covering Connections, the viewing window, settings, and minimum window sizes in light and dark appearances. The Windows workflow uploads these screenshots for visual review. Synthetic images contain no private desktop contents. Appearance changes are handled using system preferences; the test-only switches do not change OS preferences.
+
 ## Local macOS checks
 
 - Native server self-tests: scaling/native limits/portrait geometry; color quantization and changed tiles; visible-region crop; μ-law encoding; password persistence/verification; TLS identity loading; framing.
@@ -11,7 +15,7 @@ This file distinguishes implemented behavior from real-machine acceptance testin
 
 ## Windows checks
 
-The build workflow cross-compiles native x86, x64, and ARM64 executables, then runs each on a corresponding Windows runner. Tests cover framing and rectangle bounds, WIC decoding, certificate fingerprint hashing, OSC parsing, input coordinate mapping, resolution gating, and secret-free state reports. A separate local TLS fixture exercises the actual WinHTTP connection, monitor selection changes, and image decoding.
+The build workflow cross-compiles native x86, x64, and ARM64 executables, then runs each on a corresponding Windows runner. Tests cover framing and rectangle bounds, WIC decoding, certificate fingerprint hashing, OSC parsing, input coordinate mapping, resolution gating, and secret-free state reports. A separate local TLS fixture exercises the actual WinHTTP connection, monitor selection changes, and image decoding, including the host’s packed 4-bit grayscale PNG format.
 
 Check the [workflow results](https://github.com/ryangrams/su-remote/actions) for the exact commit's outcome. A configured test is not a passed test. Windows Server/Windows 11 runner coverage does not establish Windows 10 hardware compatibility.
 
@@ -25,3 +29,7 @@ Check the [workflow results](https://github.com/ryangrams/su-remote/actions) for
 - Live ZeroTier network activation/restoration and recovery, on a non-production test network.
 
 Pre-login access, H.264, multiple simultaneous viewers, code signing/notarization, Windows/Linux servers, clipboard sync, and file transfer are not implemented in this preview.
+
+## Encoding measurements
+
+The repeatable generated-workload benchmark in `benchmarks/` measures conversion, encoding, and payload size separately. These measurements characterize the supplied fixtures; they are not a claim about actual YouTube playback, real VPN throughput, or every Mac. See its results and method for before/after details.
