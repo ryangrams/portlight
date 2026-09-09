@@ -32,7 +32,7 @@ def certificate(folder):
     cert, key = folder / 'certificate.pem', folder / 'key.pem'
     subprocess.run([openssl, 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
                     '-keyout', str(key), '-out', str(cert), '-days', '1',
-                    '-subj', '/CN=localhost'], check=True, capture_output=True)
+                    '-subj', '/CN=localhost'], check=True, capture_output=True, timeout=20)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(cert, key)
@@ -113,19 +113,25 @@ async def run(viewer):
                        SU_REMOTE_TEST_FINGERPRINT=fingerprint,
                        SU_REMOTE_TEST_PASSWORD='temporary-fixture-password',
                        SU_REMOTE_TEST_REPORT=str(report))
-            process = await asyncio.create_subprocess_exec(str(viewer.resolve()), '--integration-test',
-                                                          env=env, stdout=asyncio.subprocess.PIPE,
-                                                          stderr=asyncio.subprocess.STDOUT)
-            try:
-                output, _ = await asyncio.wait_for(process.communicate(), 30)
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-                raise
-            if output:
-                print(output.decode(errors='replace'))
+            # A log file avoids a Windows child/crash reporter inheriting a pipe
+            # and keeping asyncio.communicate() alive after the viewer exits.
+            log_path = folder / 'viewer.log'
+            with log_path.open('wb') as log:
+                process = await asyncio.create_subprocess_exec(str(viewer.resolve()), '--integration-test',
+                                                              env=env, stdout=log,
+                                                              stderr=asyncio.subprocess.STDOUT)
+                try:
+                    await asyncio.wait_for(process.wait(), 30)
+                except asyncio.TimeoutError:
+                    print('Viewer timed out. Protocol observations:', json.dumps(observed), flush=True)
+                    process.kill()
+                    await asyncio.wait_for(process.wait(), 5)
+                    raise
+            output = log_path.read_text(errors='replace')
+            if output: print(output)
+            native = json.loads(report.read_text()) if report.exists() else {}
+            print('Native report:', json.dumps(native), flush=True)
             assert process.returncode == 0, f'Viewer integration exit code {process.returncode}'
-            native = json.loads(report.read_text())
             assert native.get('ok') is True and native.get('rejectedFrames') == 0, native
         assert observed['connections'] == 1 and observed['authenticated'] == 1, observed
         selections = [set(s['displays']) for s in observed['subscriptions']]
