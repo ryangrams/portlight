@@ -1,0 +1,79 @@
+name: Build and validate
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Build apps and run native Mac tests
+        run: ./build.sh
+      - name: Test encrypted subscriptions against synthetic monitors
+        run: |
+          python3 -m venv .test-venv
+          .test-venv/bin/pip install -r tests/requirements.txt
+          .test-venv/bin/python tests/run_e2e.py
+          .test-venv/bin/python viewer-macos/test-integration.py
+      - name: Package previews
+        run: ./package.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: preview-packages
+          path: release/0.1.0-alpha.1/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-binaries
+          path: |
+            viewer-windows/dist/x86/
+            viewer-windows/dist/x64/
+            viewer-windows/dist/arm64/
+  windows:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            runner: windows-2025
+          - arch: x64
+            runner: windows-2025
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: windows-binaries
+          path: binaries
+      - name: Execute native viewer and helper tests
+        shell: pwsh
+        env:
+          TEST_ARCH: ${{ matrix.arch }}
+        run: |
+          $viewer = Join-Path $PWD "binaries/$env:TEST_ARCH/SU Remote Viewer.exe"
+          $process = Start-Process -FilePath $viewer -ArgumentList '--self-test' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Viewer tests failed: $($process.ExitCode)" }
+          & "binaries/$env:TEST_ARCH/su-zerotier.exe" --self-test
+          if ($LASTEXITCODE -ne 0) { throw "ZeroTier helper tests failed: $LASTEXITCODE" }
+      - name: Test the actual Windows viewer over TLS
+        shell: pwsh
+        env:
+          TEST_ARCH: ${{ matrix.arch }}
+        run: |
+          python -m pip install -r tests/requirements.txt
+          python tests/windows_integration.py "binaries/$env:TEST_ARCH/SU Remote Viewer.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Native Windows integration failed' }
