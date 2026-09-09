@@ -126,6 +126,7 @@ async def run(viewer):
                 print(output.decode(errors='replace'))
             assert process.returncode == 0, f'Viewer integration exit code {process.returncode}'
             native = json.loads(report.read_text())
+            assert native.get('ok') is True and native.get('rejectedFrames') == 0, native
         assert observed['connections'] == 1 and observed['authenticated'] == 1, observed
         selections = [set(s['displays']) for s in observed['subscriptions']]
         assert {'fixture-1'} in selections and {'fixture-3'} in selections and {'fixture-1', 'fixture-3'} in selections, observed

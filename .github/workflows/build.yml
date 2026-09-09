@@ -65,7 +65,9 @@ jobs:
           TEST_ARCH: ${{ matrix.arch }}
         run: |
           $viewer = Join-Path $PWD "binaries/$env:TEST_ARCH/SU Remote Viewer.exe"
-          $process = Start-Process -FilePath $viewer -ArgumentList '--self-test' -Wait -PassThru
+          $process = Start-Process -FilePath $viewer -ArgumentList '--self-test' -Wait -PassThru -RedirectStandardOutput viewer-self-test.json -RedirectStandardError viewer-self-test-errors.txt
+          Get-Content viewer-self-test.json
+          Get-Content viewer-self-test-errors.txt
           if ($process.ExitCode -ne 0) { throw "Viewer tests failed: $($process.ExitCode)" }
           & "binaries/$env:TEST_ARCH/su-zerotier.exe" --self-test
           if ($LASTEXITCODE -ne 0) { throw "ZeroTier helper tests failed: $LASTEXITCODE" }
