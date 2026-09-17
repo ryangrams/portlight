@@ -1,0 +1,30 @@
+#!/bin/bash
+# Build, install and launch the app on an iOS Simulator, then capture screenshots per appearance.
+#   scripts/capture-ui [name] [-- app launch arguments...]
+# Env: PORTLIGHT_CAPTURE_APPEARANCES (default "light dark"), PORTLIGHT_CAPTURE_WAIT seconds (default 4).
+# App environment can be passed as SIMCTL_CHILD_<NAME>=value (simctl forwards it to the app).
+source "$(dirname "$0")/lib.sh"
+require_xcode
+name="${1:-shell}"; [[ $# -gt 0 ]] && shift
+[[ "${1:-}" == "--" ]] && shift
+app="$("$IOS_DIR/scripts/build-simulator")"
+udid="$(pick_simulator)"
+bundle=studio.upgrade.remote.viewer.ios
+xcrun simctl boot "$udid" 2>/dev/null || true
+xcrun simctl bootstatus "$udid" -b >/dev/null
+xcrun simctl install "$udid" "$app"
+xcrun simctl status_bar "$udid" override --time 9:41 --batteryState charged --batteryLevel 100 --wifiBars 3 >/dev/null 2>&1 || true
+out="$EVIDENCE_DIR/screenshots"
+mkdir -p "$out"
+for appearance in ${PORTLIGHT_CAPTURE_APPEARANCES:-light dark}; do
+  xcrun simctl ui "$udid" appearance "$appearance"
+  xcrun simctl terminate "$udid" "$bundle" >/dev/null 2>&1 || true
+  xcrun simctl launch "$udid" "$bundle" "$@" >/dev/null
+  sleep "${PORTLIGHT_CAPTURE_WAIT:-4}"
+  file="$out/$name-$appearance.png"
+  xcrun simctl io "$udid" screenshot "$file" >/dev/null 2>&1
+  log "Captured $file on $(sim_name "$udid") [$udid]"
+done
+xcrun simctl terminate "$udid" "$bundle" >/dev/null 2>&1 || true
+xcrun simctl ui "$udid" appearance light
+xcrun simctl status_bar "$udid" clear >/dev/null 2>&1 || true

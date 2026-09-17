@@ -155,7 +155,7 @@ public:
             for(const auto& id:scope)if(id!=desired&&before[id]["joined"]==true){api("DELETE","/network/"+id,nullptr);checkpoint();}
             api("POST","/network/"+desired,before[desired]["properties"]);
             checkpoint();
-            bool ready=false;for(int attempt=0;attempt<30;++attempt){auto n=api("GET","/network/"+desired,nullptr);auto st=n.value("status",std::string());if(st=="OK"){ready=true;break;}if(st=="ACCESS_DENIED"||st=="NOT_FOUND")break;std::this_thread::sleep_for(std::chrono::milliseconds(100));}
+            bool ready=false;for(int attempt=0;attempt<60;++attempt){auto n=api("GET","/network/"+desired,nullptr);auto st=n.value("status",std::string());if(st=="OK"){ready=true;break;}if(st=="ACCESS_DENIED"||st=="NOT_FOUND")break;std::this_thread::sleep_for(std::chrono::milliseconds(500));}
             if(!ready)throw std::runtime_error("The requested ZeroTier network is not authorized or ready. Previous networks will be restored.");
             auto afterNetworks=api("GET","/network",nullptr);json after=json::object();for(const auto& id:scope)after[id]=membership(afterNetworks,id);
             if(after[desired]["joined"]!=true)throw std::runtime_error("Required network did not remain connected.");
@@ -172,6 +172,23 @@ public:
         catch (...) {tx["phase"]="recovery-needed";save();throw;}
         transactions.erase(transactions.begin()+index);save();return {{"ok",true},{"networks",publicNetworks(api("GET","/network",nullptr))}};
     }return {{"ok",false},{"code","missing"},{"message","Saved network transaction not found."}};}
+    json finish(const json& request) {
+        const auto id=request.at("transactionId").get<std::string>();
+        for(size_t index=0;index<transactions.size();++index) {
+            auto& tx=transactions[index]; if(tx.at("id")!=id)continue;
+            if(request.value("disconnect",false)) {
+                const std::string network=tx.at("networkId");
+                auto current=api("GET","/network",nullptr);
+                if(tx.contains("after") && membership(current,network)!=tx["after"][network])
+                    return {{"ok",false},{"code","changed"},{"message","This network changed outside Portlight. Its settings were preserved."}};
+                tx["phase"]="disconnecting";save();
+                api("DELETE","/network/"+network,nullptr);
+            }
+            transactions.erase(transactions.begin()+index);save();
+            return {{"ok",true},{"message",request.value("disconnect",false)?"Paired network disconnected.":"Paired network kept connected."}};
+        }
+        return {{"ok",false},{"code","missing"},{"message","Saved network transaction not found."}};
+    }
     json forget(const json& request) {const std::string id=request.at("transactionId").get<std::string>();for(size_t index=0;index<transactions.size();++index)if(transactions[index].at("id")==id){transactions.erase(transactions.begin()+index);save();return {{"ok",true},{"message","Saved restoration state cleared. Network settings were not changed."}};}return {{"ok",false},{"code","missing"},{"message","Saved network transaction not found."}};}
 };
 static void persist(const fs::path& file,const json& value){auto temp=file;temp+=".tmp";{std::ofstream out(temp,std::ios::binary|std::ios::trunc);out<<value.dump(2);if(!out)throw std::runtime_error("Could not save network restoration state.");}
@@ -210,14 +227,21 @@ static int selfTest(){
     restored=interrupted.restore({{"transactionId",result["transactionId"]}});
     require(restored["ok"]==true&&tx.empty()&&!members.count(a)&&members.count(b)&&members.count(unrelated),"interrupted restore cannot be retried");
     require(!validID("../../anything!!"),"ID validation");require(saves>=4,"state not persisted");
-    std::cout<<json{{"ok",true},{"tests",json::array({"exclusive group","leave conflicts before join","unrelated networks preserved","overlap refused","state restoration","manual changes preserved","forget preserves networks","activation rollback","retry interrupted restoration","offline recovery visibility","ID validation","durable transaction"})}}.dump()<<"\n";return 0;
+    result=p.activate({{"networkId",a},{"managedNetworkIds",json::array({a,b})},{"sessionId","finish-keep"}});
+    require(result["ok"]==true,"finish setup failed");
+    auto finished=p.finish({{"transactionId",result["transactionId"]},{"disconnect",false}});
+    require(finished["ok"]==true&&tx.empty()&&members.count(a)&&!members.count(b)&&members.count(unrelated),"keep network finish changed memberships");
+    result=p.activate({{"networkId",a},{"managedNetworkIds",json::array({a,b})},{"sessionId","finish-disconnect"}});
+    finished=p.finish({{"transactionId",result["transactionId"]},{"disconnect",true}});
+    require(finished["ok"]==true&&tx.empty()&&!members.count(a)&&!members.count(b)&&members.count(unrelated),"disconnect did not leave only the paired network");
+    std::cout<<json{{"ok",true},{"tests",json::array({"exclusive group","leave conflicts before join","unrelated networks preserved","overlap refused","state restoration","manual changes preserved","forget preserves networks","activation rollback","retry interrupted restoration","offline recovery visibility","ID validation","durable transaction","keep paired network","disconnect paired network"})}}.dump()<<"\n";return 0;
 }
 int main(int argc,char** argv){
 #ifdef _WIN32
     WSADATA data;WSAStartup(MAKEWORD(2,2),&data);
 #endif
-    try{if(argc==2&&std::string(argv[1])=="--self-test")return selfTest();std::string input;char buffer[4096];while(std::cin){std::cin.read(buffer,sizeof(buffer));input.append(buffer,size_t(std::cin.gcount()));if(input.size()>65536)throw std::runtime_error("Request too large.");}auto request=json::parse(input);auto action=request.at("action").get<std::string>();if(action!="status"&&action!="activate"&&action!="restore"&&action!="forget")throw std::runtime_error("Unknown ZeroTier action.");
+    try{if(argc==2&&std::string(argv[1])=="--self-test")return selfTest();std::string input;char buffer[4096];while(std::cin){std::cin.read(buffer,sizeof(buffer));input.append(buffer,size_t(std::cin.gcount()));if(input.size()>65536)throw std::runtime_error("Request too large.");}auto request=json::parse(input);auto action=request.at("action").get<std::string>();if(action!="status"&&action!="activate"&&action!="restore"&&action!="forget"&&action!="finish")throw std::runtime_error("Unknown ZeroTier action.");
         FileLock lock(stateDirectory());auto stateFile=stateDirectory()/"transactions.json";auto saved=readFile(stateFile);json transactions=saved.empty()?json::array():json::parse(saved);if(!transactions.is_array())throw std::runtime_error("Invalid network recovery state.");
-        NetworkCall call=[&](const std::string& method,const std::string& path,const json& body){return LocalAPI(token())(method,path,body);};Policy policy(call,transactions,[&]{persist(stateFile,transactions);});json result=action=="status"?policy.status():action=="activate"?policy.activate(request):action=="restore"?policy.restore(request):policy.forget(request);std::cout<<result.dump()<<"\n";return result.value("ok",false)?0:1;
+        NetworkCall call=[&](const std::string& method,const std::string& path,const json& body){return LocalAPI(token())(method,path,body);};Policy policy(call,transactions,[&]{persist(stateFile,transactions);});json result=action=="status"?policy.status():action=="activate"?policy.activate(request):action=="restore"?policy.restore(request):action=="finish"?policy.finish(request):policy.forget(request);std::cout<<result.dump()<<"\n";return result.value("ok",false)?0:1;
     }catch(const std::exception& error){std::cerr<<"SU Remote ZeroTier operation failed.\n";std::cout<<json{{"ok",false},{"message",error.what()}}.dump()<<"\n";return 1;}
 }

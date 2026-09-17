@@ -50,8 +50,20 @@ func testImage(_ width:Int,_ height:Int,_ offset:Int)->CGImage {
             for offset in [0,0,1,17] {
                 let frame=testImage(513,259,offset)
                 let a=old.encode(frame,region:whole,color:mode,quality:0.7,motion:false),b=new.encode(frame,region:whole,color:mode,quality:0.7,motion:false)
-                precondition(a.count == b.count && zip(a,b).allSatisfy{$0.data == $1.data},"Non-gray mode changed output")
+                precondition(a.count == b.count && zip(a,b).allSatisfy { renderedRGB($0.data) == renderedRGB($1.data) },"Palette conversion must preserve decoded pixels")
             }
+        }
+        for mode in ["gray16", "color256"] {
+            let encoder = TileEncoder()
+            let tiles = encoder.encode(image,region:whole,color:mode,quality:0.7,motion:true,dither:true)
+            precondition(!tiles.isEmpty)
+            precondition(tiles[0].data[24] == (mode == "gray16" ? 4 : 8))
+            precondition(tiles[0].data[25] == (mode == "gray16" ? 0 : 3))
+            precondition(!renderedRGB(tiles[0].data).isEmpty,"Dithered palette must decode")
+            precondition(encoder.encode(image,region:whole,color:mode,quality:0.7,motion:true,dither:true).isEmpty,"Dithering must remain stable on an unchanged image")
+            let text = TileEncoder().encode(image,region:whole,color:mode,quality:0.7,motion:false,dither:true)
+            let plain = TileEncoder().encode(image,region:whole,color:mode,quality:0.7,motion:false)
+            precondition(text.map { $0.data } == plain.map { $0.data },"Dithering must not affect Text mode")
         }
         let jpeg=TileEncoder().encode(image,region:whole,color:"full",quality:0.7,motion:true)
         precondition(jpeg.first?.codec == "jpeg" && jpeg.first?.data.prefix(2) == Data([0xff,0xd8]))
@@ -81,6 +93,6 @@ func testImage(_ width:Int,_ height:Int,_ offset:Int)->CGImage {
         try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
         try old[0].data.write(to:folder.appendingPathComponent("gray16-rgb-baseline.png"))
         try compact[0].data.write(to:folder.appendingPathComponent("gray16-packed4.png"))
-        print("PASS: standard PNG4 grayscale, exact ImageIO-rendered gray pixels, odd dimensions/ROI offsets, unchanged suppression, byte-identical other modes, JPEG, Auto lossless settle")
+        print("PASS: standard PNG4 grayscale, exact ImageIO-rendered gray pixels, odd dimensions/ROI offsets, unchanged suppression, pixel-identical indexed/RGB modes, JPEG, Auto lossless settle")
     }
 }

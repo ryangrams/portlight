@@ -1,0 +1,20 @@
+#!/bin/bash
+# Real-network PortlightKit tests (the "Integration: transport" suite). The tests start their own isolated hosts
+# on free 127.0.0.1 ports with temporary data directories: the fixture host, built into
+# verification/iphone-host-build when stale, and scripts/mock-host.py. They never touch a live Portlight Host.
+# A missing host fails the run instead of skipping it, and so does a run that executes zero tests.
+# Optional argument: a narrower SwiftPM --filter expression (default "Integration").
+source "$(dirname "$0")/lib.sh"
+
+fixture="$(ensure_fixture_host)"
+export PORTLIGHT_FIXTURE_EXE="$fixture"
+export PORTLIGHT_MOCK_HOST="${PORTLIGHT_MOCK_HOST:-$IOS_DIR/scripts/mock-host.py}"
+export PORTLIGHT_TEST_PYTHON="${PORTLIGHT_TEST_PYTHON:-$APP_ROOT/.test-venv/bin/python}"
+export PORTLIGHT_REQUIRE_INTEGRATION=1
+
+[[ -x "$PORTLIGHT_FIXTURE_EXE" ]] || die "fixture host missing: $PORTLIGHT_FIXTURE_EXE"
+[[ -f "$PORTLIGHT_MOCK_HOST" ]] || die "mock host missing: $PORTLIGHT_MOCK_HOST"
+[[ -x "$PORTLIGHT_TEST_PYTHON" ]] || die "test Python missing: $PORTLIGHT_TEST_PYTHON (create app/.test-venv; see the execution plan §5)"
+log "Fixture host $PORTLIGHT_FIXTURE_EXE; mock host $PORTLIGHT_MOCK_HOST via $PORTLIGHT_TEST_PYTHON"
+
+run_swiftpm_tests integration "${1:-Integration}"

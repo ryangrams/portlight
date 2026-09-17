@@ -1,36 +1,53 @@
 # Portlight for Windows
 
-Portlight by Studio Upgrade connects to Portlight Host on a Mac. It is a lightweight native Windows app, with builds for x86 (32-bit), x64, and ARM64. Windows 10 remains the minimum target. Existing SU Remote connections, trusted certificates, and OSC commands remain compatible.
+Portlight by Studio Upgrade is a native Windows viewer for Portlight Host on macOS. Builds target Windows 10 and later on x86 (32-bit), x64, and ARM64. The September 10 update brings the current Mac viewer's connection management, viewing controls, display layout, and media options to Windows.
 
-## Connect
+## Install this update
 
-Keep `Portlight.exe` and `su-zerotier.exe` together. In **Connections**, choose a saved computer or enter its name/IP address and password, then select **Connect**. Verify the first connection's certificate fingerprint against Portlight Host. Passwords are never saved.
+Quit the old Windows viewer. Extract the matching ZIP and run `Portlight.exe`, keeping `su-zerotier.exe` beside it. Existing saved connections and trusted certificates remain in `%LOCALAPPDATA%\Studio Upgrade\SU Remote\viewer.json`; replacing the application does not remove them. The executable embeds the Portlight icon and file version **0.2.0.1**.
 
-**Advanced** contains the port (5920 by default) and optional ZeroTier network policy. A saved connection can activate its chosen network and pause only the network IDs explicitly listed under **Networks to pause**. Use **Save connection** in Advanced to save the policy before using it. Cancel also works while the network is being prepared. Disconnect and closing the app wait for restoration of the previous network state; Network Status also exposes interrupted-operation recovery.
+Use the latest Portlight Host for AAC audio and the host's audio scheduling improvements. Older hosts keep working with legacy mono audio. The host's capture/privacy permissions are managed on the Mac; updating this viewer does not change them.
 
-After authentication, the computer's picture fills the window. The compact toolbar contains **Displays**, **Fit/zoom**, **Audio**, and **Settings**. The back button disconnects and returns to Connections. No computer addresses, password fields, or permanent settings sidebar appear over the viewing area.
+## Connections
 
-- **Displays:** choose one display, several, or all, without reconnecting.
-- **Fit/zoom:** fit the selected displays, use 100%, zoom in/out, or enter fullscreen. F11 toggles fullscreen; Escape exits it. Ctrl+mouse-wheel changes local zoom.
-- **Audio:** optional computer audio, off by default. Current preview audio uses 192 kbps.
-- **Settings:** HD/FHD/QHD/UHD resolution, color mode, optimization for Automatic/Text & controls/Video, frame rate, bandwidth limit in Mbps, pointer-following panning, pause, and Allow control. Blank/zero bandwidth means Automatic. A Native fallback is available for displays smaller than HD.
-- **Saved connection:** name the computer/view in Settings and select Save. The saved row then appears in Connections.
+The leading sidebar button shows or hides the compact connection list. Hiding it allows a narrower window; showing it widens a window that would be too small. Sidebar animation follows the Windows animation preference. Groups expand with one click. A connection's single click selects it for editing; double-click or **Connect** starts the session.
 
-Only selected displays and visible regions are requested. The app supports PNG/JPEG tiles and the Host's packed 4-bit grayscale PNGs. H.264 decoding is not yet implemented.
+Use the bare **+** and **−** at the bottom to add connections/groups or remove the selected item. Drag connections into groups or reorder them; drag groups to rearrange them. Right-click offers Rename, Remove, and Move to Group; F2 renames. The optional name field comes first, followed by Computer, Password, and Port in native Tab/Shift+Tab order. **Save Connection** changes to **Update Connection** when editing a saved item. An unnamed connection is saved as **Saved Connection**.
 
-Portlight uses Segoe UI, native Windows title-bar controls, system light/dark appearance, high-contrast colors, and DPI-aware layout. Appearance changes do not recolor remote images. Controls respond immediately and use no ornamental animation, including when reduced motion is enabled.
+**Save password securely** stores an optional password in Windows Credential Manager under a stable connection identifier. Selecting a row does not read the credential. The password is retrieved when connecting, and only for the matching saved address. Credentials are not written to the settings JSON. Renaming a connection keeps its credential identifier.
 
-Settings retain the original location for compatibility:
-`%LOCALAPPDATA%\Studio Upgrade\SU Remote\viewer.json`.
+**ZeroTier…** pairs a connection with a single network. Choose a known network or add its ID. Portlight can pause other networks paired in Portlight when switching, while leaving unrelated networks alone. Network preparation has a status message and supports cancellation; the helper waits for authorization/readiness before connecting. **Disconnect network when session ends** is optional and off by default. Leaving it connected makes subsequent connections faster. Failed or canceled connections restore the earlier network state. Refresh also exposes pending recovery transactions.
 
-OSC listens on localhost UDP 19790. Existing `/su/remote/...` addresses are unchanged; see `../PROTOCOL.md`. No general command-execution endpoint is exposed.
+## Viewing
 
-## Build and validate
+The grouped toolbar places the computer name and state at the leading edge and **Disconnect** at the right. It wraps groups when needed. Right-click the toolbar for **Icons** or **Icons and Text**. Native window controls, Segoe UI, system light/dark appearance, high contrast, and per-monitor DPI behavior are retained.
 
-Run `./build.sh` on macOS. It verifies and caches a pinned LLVM-MinGW toolchain, builds all three architectures, and places complete app folders in `dist/x86`, `dist/x64`, and `dist/arm64`. The Portlight icon and version metadata are embedded in each executable.
+- **Control On / View Only:** an explicit selected state and label. **Pause** disables control, dims the retained picture, and adds a large pause symbol.
+- **Resolution:** HD / FHD / QHD / UHD, with 2×2 / 3×3 / 4×4 / 5×5 grid icons. Resolutions that would upscale a selected source are unavailable. The active option has an accent outline. A host below HD uses its native size automatically.
+- **Color:** Full Color, 256 Colors, or 16 Shades of Gray, with gradient, palette, and grayscale icons. The old 16-bit option is removed; saved legacy choices migrate to Full Color.
+- **Displays:** every fresh connection selects all screens. The map uses the host's logical layout, matching Arrange Displays proportions even with mixed Retina resolutions. Compact maps allow direct clicks; small targets open a 280×140 map. Space/Return in that popup provides an accessible display list. Unselected displays are not requested. The viewing canvas removes empty bands between remaining displays, so 1 + 3 can appear adjacent while the map retains the physical arrangement.
+- **Zoom:** Zoom In, Zoom Out, 100%, Fit, in that order. Steps are 10%. Fit remains centered during resizing and constrains the window to the combined display aspect ratio, subject to minimum size and available desktop space. Fullscreen keeps the toolbar; F11 toggles fullscreen and Escape exits. Pan toggles between pointer-following and manual scroll bars. Ctrl+wheel changes local zoom.
+- **Audio:** off initially, including recalled connections. Supported hosts offer AAC mono 48 kbps or stereo 96, 160, and 320 kbps. Audio reception bypasses the image UI queue; decoding/playback use a separate bounded worker. Video subscription changes do not reset that worker. Audio pauses with the session or minimization. Legacy hosts use 24 kHz mono μ-law.
+- **Mbps ▾:** combines video bandwidth, audio quality, and Automatic / Text & Controls / Video optimization. Video defaults to Automatic; blank or 0 removes a manual ceiling. Frame rate is requested up to 60 and adapts through host backpressure, with no user fps selector. The displayed fps comes from host changed-image updates averaged over selected displays, not the number of tiles.
+- **Smooth gradients:** the Mac host's optional fixed ordered dither for Video with reduced colors. It adds no frame buffering but can increase data use, so it is off by default.
 
-`./test.sh` runs framing/allocation tests and 10,000 malformed messages under sanitizers. Each executable supports `--self-test` for native WIC PNG/grayscale decoding, certificate hashing, secure address parsing, OSC bounds, coordinate mapping, and allocation limits.
+The renderer accepts JPEG, RGB PNG, indexed PNG8, and packed 4-bit grayscale PNG. It reuses an offscreen canvas to avoid exposing partially painted frames. Audio and video still share the protocol's TLS/WebSocket connection; network head-of-line blocking remains possible. Windows AAC uses Microsoft's Media Foundation components; Windows N editions need their Media Feature Pack. H.264 decoding is not implemented.
 
-`Portlight.exe --visual-test OUTPUT_DIRECTORY` is a bounded screenshot test. It uses synthetic saved computers and remote content, opens no network/OSC listener, writes Connections/Viewing/Settings screenshots in light and dark appearances (including small windows), and exits with `visual-report.json`. It neither loads nor saves real connection settings.
+OSC remains on localhost UDP 19790 with the existing `/su/remote/...` commands. No general command execution endpoint is exposed. See the included `PROTOCOL.md`.
 
-`--integration-test` connects only to a loopback TLS fixture. Supply `SU_REMOTE_TEST_HOST=127.0.0.1:port`, `SU_REMOTE_TEST_FINGERPRINT` (exact uppercase colon-separated SHA-256 fingerprint), `SU_REMOTE_TEST_PASSWORD`, and `SU_REMOTE_TEST_REPORT`. It verifies real decoding, one-connection display switching, and the Connections → Viewing → Connections transition. Run through `../tests/windows_integration.py`.
+## Validation and development
+
+`./build.sh` verifies a pinned LLVM-MinGW toolchain and builds x86, x64, and ARM64. `./package.sh` creates the three update ZIPs. `./test.sh` runs framing/allocation and logical display-layout tests, including 10,000 malformed messages and 10,000 randomized layouts under AddressSanitizer and UndefinedBehaviorSanitizer.
+
+On Windows, `Portlight.exe --self-test` checks WIC image decoding, coordinates, connection tab order, safe row selection, secure endpoints, and silent Media Foundation decoding of AAC fixtures produced by the actual Mac encoder. The embedded synthetic fixtures contain no recorded audio. Regenerate them from the repository root with:
+
+```sh
+swiftc shared/AAC.swift viewer-windows/tests/generate-aac-fixtures.swift -o /tmp/portlight-aac-fixture
+/tmp/portlight-aac-fixture viewer-windows/tests/aac-fixtures.json
+```
+
+`Portlight.exe --visual-test OUTPUT_DIRECTORY` captures light/dark Connections, collapsed sidebar, Viewing, labels, pause, view-only, display map, and Data Rate states using synthetic content. It does not connect to a computer or load/save real settings. It writes `visual-report.json` and exits. `../tests/windows_integration.py` runs the actual Windows viewer against a loopback TLS fixture, checking all-screens startup, selection changes, indexed/grayscale PNG decoding, and return to Connections.
+
+**Validation for this build:** all three targets cross-compiled without warnings; the portable sanitizer suites and ZeroTier helper's in-memory tests passed. The generated AAC fixtures decoded successfully through the Mac decoder at all four rates. Native Windows UI, WIC/TLS integration, and Media Foundation execution still need to run on Windows: the local Parallels service was unavailable. The existing CI jobs invoke those native tests on x86, x64, and ARM64; they were updated but have not been run for these local changes. This is a local preview, not a published release.
+
+Microsoft's [AAC decoder documentation](https://learn.microsoft.com/en-us/windows/win32/medfound/aac-decoder) describes the raw AAC input and Media Foundation format metadata used by the Windows audio implementation.

@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 1,
+  "prepared": "2026-09-10",
+  "scope": "Portlight iPhone viewer; existing Portlight protocol; no URC protocol or ZeroTier integration",
+  "statusValues": [
+    "not_started",
+    "in_progress",
+    "passed",
+    "blocked",
+    "failed"
+  ],
+  "instructions": "Record command, artifact, device/runtime and date in evidence. A physical-device item cannot pass from simulator evidence alone. Preserve requirements; document an approved scope change instead of silently deleting one.",
+  "requirements": [
+    {
+      "id": "BASE-01",
+      "phase": 0,
+      "requirement": "Source snapshot and destination differences recorded; no unrelated changes overwritten",
+      "expectedEvidence": "source manifest, git status, progress note",
+      "environment": "automated",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "BASE-02",
+      "phase": 0,
+      "requirement": "iPhone simulator app builds and launches; test harness fails on zero executed tests",
+      "expectedEvidence": "build log and xcresult",
+      "environment": "simulator",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "NET-01",
+      "phase": 1,
+      "requirement": "First-use trust approval and rejection; exact saved pin; changed pin stops reconnect",
+      "expectedEvidence": "TLS fixture tests",
+      "environment": "automated",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "NET-02",
+      "phase": 1,
+      "requirement": "Cancel or new connection invalidates old trust decisions, frames, timers, audio and callbacks",
+      "expectedEvidence": "generation/cancellation tests",
+      "environment": "automated",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "NET-03",
+      "phase": 1,
+      "requirement": "No password is sent before certificate approval or read when merely selecting a saved connection",
+      "expectedEvidence": "transport spy and Keychain adapter tests",
+      "environment": "automated",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "NET-04",
+      "phase": 1,
+      "requirement": "Timeout, no route, refused port, wrong password and busy host have correct distinct outcomes",
+      "expectedEvidence": "failure fixtures and UI captures",
+      "environment": "simulator",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "WIRE-01",
+      "phase": 1,
+      "requirement": "JSON/binary limits, overflow, malformed images, unknown codecs and invalid numbers fail safely",
+      "expectedEvidence": "parser/decoder tests",
+      "environment": "automated",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "DISP-01",
+      "phase": 1,
+      "requirement": "Fresh connection selects all three fixture monitors at revision 1 and fits the collection",
+      "expectedEvidence": "real Portlight fixture transcript and screenshot",
+      "environment": "simulator",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "RENDER-01",
+      "phase": 1,
+      "requirement": "PNG4, indexed PNG8 and JPEG decode to correct pixels; overlapping partial updates preserve untouched areas",
+      "expectedEvidence": "golden pixel comparisons",
+      "environment": "automated",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "RENDER-02",
+      "phase": 1,
+      "requirement": "Applied patches remain complete when presentations coalesce; ACKs release old revision capacity",
+      "expectedEvidence": "bounded-queue and stale-revision fixture",
+      "environment": "automated",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "RENDER-03",
+      "phase": 1,
+      "requirement": "Frame arrivals never change viewport transforms; scripted trace is identical with and without tile flood",
+      "expectedEvidence": "no-jump test with positive applied/presented counts",
+      "environment": "automated",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "INPUT-01",
+      "phase": 2,
+      "requirement": "Direct, Trackpad and local Pan modes follow gesture arbitration and have visible state",
+      "expectedEvidence": "gesture tests and device recording",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "INPUT-02",
+      "phase": 2,
+      "requirement": "Left/right/middle click, drag and modifier combinations reach the intended Mac display",
+      "expectedEvidence": "controlled test-app input log and optical check",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "INPUT-03",
+      "phase": 2,
+      "requirement": "Buttons, locked/latched modifiers and keys release on pause, control-off, mode switch, background and disconnect",
+      "expectedEvidence": "input ledger tests and physical mid-drag interruption",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "INPUT-04",
+      "phase": 2,
+      "requirement": "Unicode composition commits exactly once; special keys and hardware keyboard use keysyms",
+      "expectedEvidence": "text/key event tests plus real keyboard check",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "DISP-02",
+      "phase": 2,
+      "requirement": "Mixed-DPI, negative origins, portrait and 1+3 compact selection map correctly",
+      "expectedEvidence": "geometry fixtures and physical mixed-display check",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "VIEW-01",
+      "phase": 2,
+      "requirement": "Fit follows rotation and available space; other zoom preserves anchor across resolution and keyboard changes",
+      "expectedEvidence": "geometry tests and orientation UI tests",
+      "environment": "simulator",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "VIEW-02",
+      "phase": 2,
+      "requirement": "Control On/View Only is unmistakable; Pause dims retained picture and blocks remote input",
+      "expectedEvidence": "screenshots and outbound-event assertions",
+      "environment": "simulator",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "QUALITY-01",
+      "phase": 3,
+      "requirement": "Four resolution and three color buttons show selection; unsupported values disabled; no user FPS picker",
+      "expectedEvidence": "UI tests and subscription assertions",
+      "environment": "simulator",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "QUALITY-02",
+      "phase": 3,
+      "requirement": "Video smoothing is optional/off by default and does not affect Text mode",
+      "expectedEvidence": "subscription/encoder fixture comparison",
+      "environment": "automated",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "REGION-01",
+      "phase": 3,
+      "requirement": "Offscreen selected displays have explicit zero regions; no unselected payload; no subscription during held drag/chord",
+      "expectedEvidence": "wire transcript and input-state tests",
+      "environment": "automated",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "AUDIO-01",
+      "phase": 3,
+      "requirement": "AAC and mulaw bounds/formats decode; old audio epochs rejected; video-only revisions preserve playback",
+      "expectedEvidence": "audio fixture and epoch tests",
+      "environment": "automated",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "AUDIO-02",
+      "phase": 3,
+      "requirement": "Audio continues across quality/display changes; bounded queue under congestion; route/interruption recovery",
+      "expectedEvidence": "real phone playback and underrun/queue measurements",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "LIFE-01",
+      "phase": 4,
+      "requirement": "Background releases input and covers app-switcher image; foreground frozen frame reconnects without becoming controllable early",
+      "expectedEvidence": "real lifecycle test",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "SAVE-01",
+      "phase": 4,
+      "requirement": "Names/groups/save/update/reorder/delete persist; credentials remain only in Keychain; selection does not connect",
+      "expectedEvidence": "persistence tests and UI walkthrough",
+      "environment": "simulator",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "PASTE-01",
+      "phase": 4,
+      "requirement": "Explicit Type Pasted Text uses native paste intent and UTF-8-safe chunks; no clipboard polling",
+      "expectedEvidence": "paste tests and device prompt behavior",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "UX-01",
+      "phase": 4,
+      "requirement": "Light/dark, large text, VoiceOver, reduced motion/transparency and 44-point controls are usable",
+      "expectedEvidence": "appearance captures and accessibility/device review",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "PRIV-01",
+      "phase": 4,
+      "requirement": "Local network request/denial/retry works; no viewer screen-recording or microphone prompt",
+      "expectedEvidence": "real iPhone permissions test",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "PERF-01",
+      "phase": 4,
+      "requirement": "Named-phone local gesture timing, end-to-end input latency, bandwidth, audio and memory measured on named link profiles",
+      "expectedEvidence": "benchmark report with method and samples",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "SOAK-01",
+      "phase": 4,
+      "requirement": "30-minute phone session has bounded memory/queues and no stuck input across reconnects",
+      "expectedEvidence": "soak report and thermal/memory traces",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "DELIVERY-01",
+      "phase": 4,
+      "requirement": "Reproducible source/build, evidence, device test guide and honest limits delivered; no automatic publication",
+      "expectedEvidence": "delivery manifest",
+      "environment": "manual",
+      "status": "not_started",
+      "evidence": []
+    }
+  ]
+}

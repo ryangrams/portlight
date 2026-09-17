@@ -1,0 +1,60 @@
+#!/bin/bash
+# Build, install and launch Portlight on a physical iPhone connected to this Mac (requires Xcode),
+# optionally running the launch UI test on the device. Never uploads or publishes anything.
+#   scripts/test-device --udid <device-udid> [--allow-provisioning] [--ui-test]
+# --allow-provisioning lets Xcode register the device and create the development App ID/profile for
+# studio.upgrade.remote.viewer.ios on the Apple Developer team (an account-side change). Without it, the
+# build uses only provisioning profiles already on this Mac.
+# Env: PORTLIGHT_TEAM_ID (default QJQY4YSGUQ, the Studio's Apple Development team).
+source "$(dirname "$0")/lib.sh"
+require_xcode
+
+udid=""; provisioning=(); ui_test=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --udid) udid="${2:-}"; shift;;
+    --allow-provisioning) provisioning=(-allowProvisioningUpdates);;
+    --ui-test) ui_test=true;;
+    *) die "unknown option: $1 (usage: scripts/test-device --udid <udid> [--allow-provisioning] [--ui-test])";;
+  esac
+  shift
+done
+[[ -n "$udid" ]] || die "pass --udid <device-udid> (xcrun devicectl list devices)"
+team="${PORTLIGHT_TEAM_ID:-QJQY4YSGUQ}"
+bundle=studio.upgrade.remote.viewer.ios
+
+state="$(xcrun devicectl list devices 2>/dev/null | grep -F "$udid" || true)"
+[[ -n "$state" ]] || die "device $udid is not paired with this Mac"
+if grep -q "unavailable" <<<"$state"; then
+  die "device $udid is unavailable: connect it, unlock it, trust this Mac and enable Developer Mode"
+fi
+
+mkdir -p "$EVIDENCE_DIR/device"
+log_file="$EVIDENCE_DIR/device/build-device.log"
+log "Building for device $udid with team $team${provisioning:+ (provisioning updates allowed)}"
+if ! xcodebuild -project "$IOS_DIR/Portlight.xcodeproj" -scheme Portlight -configuration Debug \
+     -destination "id=$udid" -derivedDataPath "$DERIVED_DATA-device" \
+     DEVELOPMENT_TEAM="$team" CODE_SIGN_STYLE=Automatic ${provisioning[@]+"${provisioning[@]}"} build > "$log_file" 2>&1; then
+  grep -E "error:" "$log_file" | sort -u | head -30 >&2 || tail -40 "$log_file" >&2
+  die "device build failed — $log_file (signing errors usually mean --allow-provisioning is needed)"
+fi
+app="$DERIVED_DATA-device/Build/Products/Debug-iphoneos/Portlight.app"
+[[ -d "$app" ]] || die "expected product missing: $app"
+
+xcrun devicectl device install app --device "$udid" "$app" > "$EVIDENCE_DIR/device/install.log" 2>&1 \
+  || { tail -20 "$EVIDENCE_DIR/device/install.log" >&2; die "install failed"; }
+xcrun devicectl device process launch --device "$udid" "$bundle" > "$EVIDENCE_DIR/device/launch.log" 2>&1 \
+  || { tail -20 "$EVIDENCE_DIR/device/launch.log" >&2; die "launch failed (unlock the iPhone and trust the developer in Settings › General › VPN & Device Management)"; }
+log "Installed and launched $bundle on $udid"
+
+if $ui_test; then
+  result="$EVIDENCE_DIR/device/xcode-device-ui-$(date +%Y%m%d-%H%M%S).xcresult"
+  if ! xcodebuild test -project "$IOS_DIR/Portlight.xcodeproj" -scheme Portlight -destination "id=$udid" \
+       -derivedDataPath "$DERIVED_DATA-device" -resultBundlePath "$result" -only-testing:PortlightUITests/LaunchTests \
+       DEVELOPMENT_TEAM="$team" CODE_SIGN_STYLE=Automatic ${provisioning[@]+"${provisioning[@]}"} > "$EVIDENCE_DIR/device/test-device.log" 2>&1; then
+    tail -30 "$EVIDENCE_DIR/device/test-device.log" >&2
+    die "device UI test failed — $result"
+  fi
+  log "Device launch UI test passed — $result"
+fi
+log "Next: follow docs/DEVICE-TEST-SCRIPT.md and record results in ACCEPTANCE.json"

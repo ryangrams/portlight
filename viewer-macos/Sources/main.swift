@@ -3,6 +3,21 @@ import AppKit
 if CommandLine.arguments.contains("--self-test") {
     var failures = 0
     func check(_ truth:Bool,_ name:String) { print("\(truth ? "PASS" : "FAIL") \(name)"); if !truth { failures += 1 } }
+    check(testAACRoundTrip(),"AAC audio roundtrip: mono 48 and stereo 96/160/320 kbps")
+    var layoutMonitors:[RemoteMonitor] = []
+    for i in 0..<3 {
+        let width:Int = i == 1 ? 1920 : 3840, height:Int = i == 1 ? 1080 : 2160
+        let position = Double(i*1920-1920)
+        let monitor = RemoteMonitor(id:String(i),name:"Display",width:width,height:height,logicalX:position,logicalY:0,logicalWidth:1920,logicalHeight:1080,number:i+1)
+        layoutMonitors.append(monitor)
+    }
+    let fullLayout = displayLayout(layoutMonitors,compact:false)
+    let compactLayout = displayLayout([layoutMonitors[0],layoutMonitors[2]],compact:true)
+    check(fullLayout["0"]?.width == fullLayout["1"]?.width,"Mixed Retina and standard displays use equal logical sizes")
+    check(fullLayout["2"]?.minX == 3840 && compactLayout["2"]?.minX == 1920,"Hidden middle display is removed only from the viewing layout")
+    check(compactLayout["0"]?.maxX == compactLayout["2"]?.minX,"Compacted screens meet without a dead drag zone")
+    let stacked = RemoteMonitor(id:"stack",name:"Portrait",width:2160,height:3840,logicalX:0,logicalY:-1920,logicalWidth:1080,logicalHeight:1920,number:4)
+    check(displayLayout([layoutMonitors[1],stacked],compact:false)["stack"]?.minY == 0,"Negative vertical arrangement preserves the host topology")
     let fullHD = RemoteMonitor(id:"1",name:"FHD",width:1920,height:1080)
     let portrait = RemoteMonitor(id:"2",name:"Portrait",width:2160,height:3840)
     let small = RemoteMonitor(id:"3",name:"Small",width:800,height:600)
@@ -27,6 +42,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var viewer: ViewerController?
     var terminating = false
     func applicationDidFinishLaunching(_ notification:Notification) {
+        // Set this after AppKit finishes launching so its default icon cannot replace it.
+        if let iconURL = Bundle.main.url(forResource:"Portlight",withExtension:"icns"), let icon = NSImage(contentsOf:iconURL) {
+            NSApp.applicationIconImage = icon
+        }
         let main = NSMenu()
         let appItem = NSMenuItem(); main.addItem(appItem); let appMenu = NSMenu(); appItem.submenu = appMenu
         appMenu.addItem(withTitle:"About Portlight",action:#selector(NSApplication.orderFrontStandardAboutPanel(_:)),keyEquivalent:"")
@@ -39,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fullscreen = viewMenu.addItem(withTitle:"Enter Full Screen",action:#selector(NSWindow.toggleFullScreen(_:)),keyEquivalent:"f"); fullscreen.keyEquivalentModifierMask = [.command,.control]
         NSApp.mainMenu = main
         let viewer = ViewerController(); self.viewer = viewer; for item in viewMenu.items where item.action != #selector(NSWindow.toggleFullScreen(_:)) { item.target = viewer }; viewer.showWindow(nil); NSApp.activate(ignoringOtherApps:true)
+        if let i = CommandLine.arguments.firstIndex(of:"--sidebar-motion-check"), CommandLine.arguments.count > i+1 { DispatchQueue.main.asyncAfter(deadline:.now()+0.2) { viewer.checkSidebarMotion(report:CommandLine.arguments[i+1]) } }
         if let i = CommandLine.arguments.firstIndex(of:"--ui-check"), CommandLine.arguments.count > i+1 {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.2) { viewer.runUIRegression(report:CommandLine.arguments[i+1]) }
         }

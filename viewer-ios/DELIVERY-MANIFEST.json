@@ -1,0 +1,2152 @@
+{
+ "generated": "2026-09-11T12:32:19+00:00",
+ "generator": "viewer-ios/scripts/delivery-manifest.py",
+ "sourceIdentity": {
+  "portlightCheckoutCommit": "bfa6c2c51a8e440b81268d892841d3fee7af4e32",
+  "newWorkGitStatus": [
+   "?? docs/host-next/",
+   "?? viewer-ios/"
+  ],
+  "preexistingChangesElsewhere": 39,
+  "note": "viewer-ios/ and docs/host-next/ are uncommitted working-tree additions; nothing was committed, pushed, published, uploaded or submitted."
+ },
+ "toolchains": {
+  "swift (this Mac)": [
+   "Apple Swift version 6.2.3 (swiftlang-6.2.3.3.21 clang-1700.6.3.2)"
+  ],
+  "xcode": {
+   "where": "studio (RG Mac Studio, via scripts/studio)",
+   "version": "Xcode 26.6, Build version 17F113"
+  }
+ },
+ "acceptance": {
+  "counts": {
+   "in_progress": 10,
+   "not_started": 2,
+   "passed": 19
+  },
+  "requirements": {
+   "BASE-01": "passed",
+   "BASE-02": "passed",
+   "NET-01": "passed",
+   "NET-02": "passed",
+   "NET-03": "passed",
+   "NET-04": "passed",
+   "WIRE-01": "passed",
+   "DISP-01": "passed",
+   "RENDER-01": "passed",
+   "RENDER-02": "passed",
+   "RENDER-03": "passed",
+   "INPUT-01": "in_progress",
+   "INPUT-02": "in_progress",
+   "INPUT-03": "in_progress",
+   "INPUT-04": "in_progress",
+   "DISP-02": "in_progress",
+   "VIEW-01": "passed",
+   "VIEW-02": "passed",
+   "QUALITY-01": "passed",
+   "QUALITY-02": "passed",
+   "REGION-01": "passed",
+   "AUDIO-01": "passed",
+   "AUDIO-02": "in_progress",
+   "LIFE-01": "in_progress",
+   "SAVE-01": "passed",
+   "PASTE-01": "in_progress",
+   "UX-01": "in_progress",
+   "PRIV-01": "in_progress",
+   "PERF-01": "not_started",
+   "SOAK-01": "not_started",
+   "DELIVERY-01": "passed"
+  }
+ },
+ "deliverables": {
+  "source: Xcode project": {
+   "Portlight.xcodeproj/project.pbxproj": [
+    "Portlight.xcodeproj/project.pbxproj"
+   ]
+  },
+  "source: PortlightKit package": {
+   "PortlightKit/Package.swift": [
+    "PortlightKit/Package.swift"
+   ]
+  },
+  "build: simulator": {
+   "scripts/build-simulator": [
+    "scripts/build-simulator"
+   ]
+  },
+  "build: physical iPhone": {
+   "scripts/test-device": [
+    "scripts/test-device"
+   ]
+  },
+  "install and signing steps": {
+   "docs/INSTALL.md": [
+    "docs/INSTALL.md"
+   ]
+  },
+  "physical-iPhone test script": {
+   "docs/DEVICE-TEST-SCRIPT.md": [
+    "docs/DEVICE-TEST-SCRIPT.md"
+   ]
+  },
+  "known limitations": {
+   "docs/KNOWN-LIMITS.md": [
+    "docs/KNOWN-LIMITS.md"
+   ]
+  },
+  "decisions and progress": {
+   "DECISIONS.md": [
+    "DECISIONS.md"
+   ],
+   "PROGRESS.md": [
+    "PROGRESS.md"
+   ],
+   "ACCEPTANCE.json": [
+    "ACCEPTANCE.json"
+   ]
+  },
+  "evidence: unit test logs": {
+   "evidence/swiftpm-unit-*.log": [
+    "evidence/swiftpm-unit-Mac.log",
+    "evidence/swiftpm-unit-RG-Book-16.log",
+    "evidence/swiftpm-unit-RG-Mac-Studio.log"
+   ],
+   "evidence/xcode-kit-ios.log": [
+    "evidence/xcode-kit-ios.log"
+   ],
+   "evidence/xcode-app-unit.log": [
+    "evidence/xcode-app-unit.log"
+   ]
+  },
+  "evidence: real-host integration log": {
+   "evidence/swiftpm-integration-*.log": [
+    "evidence/swiftpm-integration-Mac.log",
+    "evidence/swiftpm-integration-RG-Book-16.log"
+   ]
+  },
+  "evidence: end-to-end run": {
+   "evidence/e2e/xcresult-summary.json": [
+    "evidence/e2e/xcresult-summary.json"
+   ],
+   "evidence/e2e/portlight-transcript.log": [
+    "evidence/e2e/portlight-transcript.log"
+   ]
+  },
+  "screenshots: connection states": {
+   "evidence/e2e/screenshots/fixture-saved-form.png": [
+    "evidence/e2e/screenshots/fixture-saved-form.png"
+   ],
+   "evidence/e2e/screenshots/fixture-trust-sheet.png": [
+    "evidence/e2e/screenshots/fixture-trust-sheet.png"
+   ],
+   "evidence/e2e/screenshots/fixture-wrong-password.png": [
+    "evidence/e2e/screenshots/fixture-wrong-password.png"
+   ],
+   "evidence/e2e/screenshots/fixture-refused.png": [
+    "evidence/e2e/screenshots/fixture-refused.png"
+   ],
+   "evidence/e2e/screenshots/fixture-busy.png": [
+    "evidence/e2e/screenshots/fixture-busy.png"
+   ],
+   "evidence/e2e/screenshots/fixture-silent-host.png": [
+    "evidence/e2e/screenshots/fixture-silent-host.png"
+   ],
+   "evidence/e2e/screenshots/fixture-no-route.png": [
+    "evidence/e2e/screenshots/fixture-no-route.png"
+   ],
+   "evidence/e2e/screenshots/fixture-relaunch-list.png": [
+    "evidence/e2e/screenshots/fixture-relaunch-list.png"
+   ]
+  },
+  "screenshots: session states": {
+   "evidence/e2e/screenshots/fixture-connected.png": [
+    "evidence/e2e/screenshots/fixture-connected.png"
+   ],
+   "evidence/e2e/screenshots/fixture-connected-landscape.png": [
+    "evidence/e2e/screenshots/fixture-connected-landscape.png"
+   ],
+   "evidence/e2e/screenshots/fixture-displays-sheet.png": [
+    "evidence/e2e/screenshots/fixture-displays-sheet.png"
+   ],
+   "evidence/e2e/screenshots/fixture-quality.png": [
+    "evidence/e2e/screenshots/fixture-quality.png"
+   ],
+   "evidence/e2e/screenshots/fixture-paused.png": [
+    "evidence/e2e/screenshots/fixture-paused.png"
+   ],
+   "evidence/e2e/screenshots/fixture-view-only.png": [
+    "evidence/e2e/screenshots/fixture-view-only.png"
+   ],
+   "evidence/e2e/screenshots/fixture-diagnostics.png": [
+    "evidence/e2e/screenshots/fixture-diagnostics.png"
+   ],
+   "evidence/e2e/screenshots/fixture-app-switcher.png": [
+    "evidence/e2e/screenshots/fixture-app-switcher.png"
+   ],
+   "evidence/e2e/screenshots/fixture-foreground-reconnected.png": [
+    "evidence/e2e/screenshots/fixture-foreground-reconnected.png"
+   ]
+  },
+  "screenshots: UI gallery (light and dark)": {
+   "evidence/ui-gallery/index.tsv": [
+    "evidence/ui-gallery/index.tsv"
+   ]
+  }
+ },
+ "missingDeliverables": [],
+ "swiftLinesByArea": {
+  "App": 5873,
+  "AppTests": 654,
+  "PortlightKit/Package.swift": 26,
+  "PortlightKit/Sources": 12108,
+  "PortlightKit/Tests": 15347,
+  "UITests": 1073,
+  "scripts": 48
+ },
+ "sources": {
+  "count": 228,
+  "bytes": 2849878,
+  "files": [
+   {
+    "path": ".gitignore",
+    "bytes": 75,
+    "sha256": "afc9b2ac01f18d14e6dc185537580bdd7a633cb31ea89325583d9a8b3de1f3b1"
+   },
+   {
+    "path": "ACCEPTANCE.json",
+    "bytes": 46756,
+    "sha256": "6850c8dd1c3a7b1bcecceff1a69b03ab97354740d209971ae917c32735308a03"
+   },
+   {
+    "path": "CLAUDE.md",
+    "bytes": 1837,
+    "sha256": "3dfdd11dfa5d5f6bd17040d9220ca6df78d915c3995a405dceba20154889f08d"
+   },
+   {
+    "path": "DECISIONS.md",
+    "bytes": 18076,
+    "sha256": "a4addfd0616d684e0177148d2871b3ade282e5421026a18ddf747d4c9158f020"
+   },
+   {
+    "path": "DELIVERY.md",
+    "bytes": 5875,
+    "sha256": "b128aacf046f7bdc820c0dcc709188be03bf7c82bbc04e28058159df79e3ff15"
+   },
+   {
+    "path": "PROGRESS.md",
+    "bytes": 5179,
+    "sha256": "5b537e31f34ae0f178e4705105a5a3fe750819446a56b04ee6f78a05fd5d1d34"
+   },
+   {
+    "path": "App/PortlightApp.swift",
+    "bytes": 1107,
+    "sha256": "2fafa52db656f43d19e4dfab0f44f961c3d0f2a4e157b752939eee92dfd4b80f"
+   },
+   {
+    "path": "App/Assets.xcassets/Contents.json",
+    "bytes": 63,
+    "sha256": "0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b"
+   },
+   {
+    "path": "App/Assets.xcassets/AccentColor.colorset/Contents.json",
+    "bytes": 689,
+    "sha256": "55a8979fdc925a753b20187f5bf70016c708a4336346c038baebd83952ac4a4a"
+   },
+   {
+    "path": "App/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+    "bytes": 672575,
+    "sha256": "f085d30a35726f7b33e132094d58c36d19f67cb97c3b2d9dd851acebb1135404"
+   },
+   {
+    "path": "App/Assets.xcassets/AppIcon.appiconset/Contents.json",
+    "bytes": 211,
+    "sha256": "3725fefca1cc2f15dcff52b03b7db47884c8141e5be1d4e559367b76117f8c48"
+   },
+   {
+    "path": "App/Assets.xcassets/PrivacyIcon.imageset/Contents.json",
+    "bytes": 161,
+    "sha256": "dcdd4d9851d8521750e858c5062e3fa18f64e7aba6d09b856455f70fe94f866b"
+   },
+   {
+    "path": "App/Assets.xcassets/PrivacyIcon.imageset/PrivacyIcon.png",
+    "bytes": 67136,
+    "sha256": "8505a87c109862da4b10c9e256c0c2faa7cbd76f9fb96cd07ea3152e055d6055"
+   },
+   {
+    "path": "App/Components/Connection/ConnectionFailureCard.swift",
+    "bytes": 3829,
+    "sha256": "64a541fe2c84766db218800925b50a1b973f1b3d51f5af7a2362deb3506b78f3"
+   },
+   {
+    "path": "App/Components/Connection/ConnectionStatusCard.swift",
+    "bytes": 3107,
+    "sha256": "a351c507ca3d495e41b40171bb3cd68f2cf2a92ae15324ec2c3f1b00267e2bb9"
+   },
+   {
+    "path": "App/Components/Connection/TrustSheet.swift",
+    "bytes": 6284,
+    "sha256": "66a1176525551cd1dd5d79a3e82e0c91db57d0b2ea5bacd1e30294da24c750d9"
+   },
+   {
+    "path": "App/Components/Connections/ConnectionDetailView.swift",
+    "bytes": 9968,
+    "sha256": "6a7de98daf7539edf1d26ee8b69f01cea67f1b17a7e1d075139219b337f0871b"
+   },
+   {
+    "path": "App/Components/Connections/ConnectionRow.swift",
+    "bytes": 1495,
+    "sha256": "2e1596f8772b888f1c4d0d6f981fc8e326ae853d53d2470eff8c74b78d23b9cb"
+   },
+   {
+    "path": "App/Components/Connections/ConnectionsListView.swift",
+    "bytes": 9010,
+    "sha256": "c58d0bee8f45cfc1edb409e319e6aa7d2689b3bc75eaa59a509227b93a495e04"
+   },
+   {
+    "path": "App/Components/Input/KeyboardAccessoryBar.swift",
+    "bytes": 13988,
+    "sha256": "4f1d84974a51f2a165d0cf784b16f876c08e8debcb8ff2ef9cdaa4070929fdf2"
+   },
+   {
+    "path": "App/Components/Input/PasteTextControl.swift",
+    "bytes": 3546,
+    "sha256": "6793312c8af494ce0504a25ba162f978d28c2c656d65931dfda54e0d1e079ad8"
+   },
+   {
+    "path": "App/Components/Input/RemoteTextInputView.swift",
+    "bytes": 11139,
+    "sha256": "05b99088fb4dd46874fa99ce6d442a872f88554737698695e67e6c31092b2a78"
+   },
+   {
+    "path": "App/Components/Session/ControlModeButton.swift",
+    "bytes": 3860,
+    "sha256": "794c7a0d7f26d525df5de85b0c9473f8ac5859c27b16d19c0ce8aaa78a5cc9c6"
+   },
+   {
+    "path": "App/Components/Session/PausedOverlay.swift",
+    "bytes": 3365,
+    "sha256": "a4e4c9c7f6b67017e0ee96c36887578247e7cdd90cf264201ffd71c8ff3ce9b0"
+   },
+   {
+    "path": "App/Components/Session/PrivacyCoverView.swift",
+    "bytes": 948,
+    "sha256": "fb3d71097e17f5cda5d978a809764432bc2b37337abc9dd9ed90662023263c87"
+   },
+   {
+    "path": "App/Components/Session/SessionChrome.swift",
+    "bytes": 17028,
+    "sha256": "b1d718780cd256cab0c620f9db1658c8b703eb7b7a76aabd8645b7fb3f25c46a"
+   },
+   {
+    "path": "App/Components/Session/SessionChromeState.swift",
+    "bytes": 3243,
+    "sha256": "768a1774dc04eb6c85c34767c46a663efc5906f1ac3368b2bee57afaeb6bf817"
+   },
+   {
+    "path": "App/Components/Session/SessionNoticeBanner.swift",
+    "bytes": 2899,
+    "sha256": "a6e5c80b8f5edaa85e21e344174c1c18adf82e793f4d6dc870a166b0f4743991"
+   },
+   {
+    "path": "App/Components/Shared/Accessibility.swift",
+    "bytes": 2350,
+    "sha256": "de3971260b27c19ed43c1353362ab96867a5e3cebd7b6468f592eb2a7dbeab0f"
+   },
+   {
+    "path": "App/Components/Shared/EmptyStateView.swift",
+    "bytes": 1637,
+    "sha256": "df11f7c212301439dc8c3b11c9fda4eb6a1f3ec9fd3a7bf9823d3df7114c99eb"
+   },
+   {
+    "path": "App/Components/Shared/Theme.swift",
+    "bytes": 10134,
+    "sha256": "d18d5700997d1b4ae5fdd10f3293e7b3640ab70427c55ad58880ed64b2560b1b"
+   },
+   {
+    "path": "App/Components/Sheets/DiagnosticsView.swift",
+    "bytes": 8294,
+    "sha256": "a8cc4040d93cdc0a71a2acca28f676b0e7ac23bee5cd0ead75cbe2f0aad5ac35"
+   },
+   {
+    "path": "App/Components/Sheets/DisplaysSheet.swift",
+    "bytes": 11913,
+    "sha256": "83c3193404b7044ba8e8e25606b1bd912fc40753b6a8b30106847f4be40d6ea5"
+   },
+   {
+    "path": "App/Components/Sheets/GestureGuideView.swift",
+    "bytes": 6561,
+    "sha256": "cff56c991f3b406148a43d454b1f38e8ecadb2be112f7907cc9934e1433991ae"
+   },
+   {
+    "path": "App/Components/Sheets/QualityGlyphs.swift",
+    "bytes": 5088,
+    "sha256": "d0db441bb5cb4c37c1e5c8fdd107ab674bef352b970b9da0371dd6f148fcada3"
+   },
+   {
+    "path": "App/Components/Sheets/QualitySheet.swift",
+    "bytes": 11396,
+    "sha256": "091cf6647bc7a23067ea70987decfe26d8cb3d33d612f7a006a15e00e6963dd9"
+   },
+   {
+    "path": "App/Components/Surface/SessionSurfaceView.swift",
+    "bytes": 13301,
+    "sha256": "5f72829d5cf0b2f9adb9d9f3dcf3fb1ed778bdfd6b58590c58d48b83dc3a3604"
+   },
+   {
+    "path": "App/Composition/AppEnvironment.swift",
+    "bytes": 6701,
+    "sha256": "5833c16f4d240674e2b6dabbf73cd9aefa5b77e60943d09065d0c5a14376b18f"
+   },
+   {
+    "path": "App/Composition/AppModel.swift",
+    "bytes": 9999,
+    "sha256": "6ea4aa7d8ce04cf9470f27bd45d8b56c8e58c289e6c97ee11bbbadcfe4c6bcef"
+   },
+   {
+    "path": "App/Composition/RootView.swift",
+    "bytes": 6209,
+    "sha256": "2e3179afd9c15dc5e321c5432ee1c8cbe6b8e124a89d12fbd497b0f5f15d87a3"
+   },
+   {
+    "path": "App/Composition/SessionPresentation.swift",
+    "bytes": 5275,
+    "sha256": "369c1f5021706e226ff2be656182f825bd3f339957a0fef718021257ed47368a"
+   },
+   {
+    "path": "App/Composition/SessionScreen.swift",
+    "bytes": 15078,
+    "sha256": "28aa8ec78b434331e5f2cb9dd81031540dfebc8fc842e5fdb714da50f78c5e4a"
+   },
+   {
+    "path": "App/Gallery/GalleryDemoData.swift",
+    "bytes": 7816,
+    "sha256": "aeae2c6ec785fcd33377df68680c0e4ed014c99e060a4a4ac56d4a845d543eff"
+   },
+   {
+    "path": "App/Gallery/GalleryDemoScene.swift",
+    "bytes": 19551,
+    "sha256": "967540efb5dd8179c875b71cc25f3fb0ddf6ab84bf5c5755ec6c0544c2341c19"
+   },
+   {
+    "path": "App/Gallery/GalleryLaunch.swift",
+    "bytes": 5939,
+    "sha256": "ed7e5b12af2998d6ac4932a931b771ef8f9d8ec3ec978f3e6279c470befcf7b2"
+   },
+   {
+    "path": "App/Gallery/GalleryPages.swift",
+    "bytes": 18101,
+    "sha256": "35455c808696e390e842ccfbc6389869e99e52e02c723d24632b0a91eee84251"
+   },
+   {
+    "path": "AppTests/AppCompositionTests.swift",
+    "bytes": 14819,
+    "sha256": "92c1110d2a6406bed5aa629aff29c18e02c29537103726060d56ab079522970f"
+   },
+   {
+    "path": "AppTests/AppShellTests.swift",
+    "bytes": 236,
+    "sha256": "405d7b615e38088b2b49dde74dd5d37caa4fd2ccee5555c0061c7de430cd286f"
+   },
+   {
+    "path": "AppTests/AppTestSupport.swift",
+    "bytes": 2008,
+    "sha256": "6c3379064e4f5e09f3eed0821208d88edc3f56bb4982021181e82559cb33caf9"
+   },
+   {
+    "path": "AppTests/FileProtectionHostedTests.swift",
+    "bytes": 6025,
+    "sha256": "a4a8bd062aac3fb2d2a91f66fb1eab64ae173afb762eb5a9a027ab58257e883b"
+   },
+   {
+    "path": "AppTests/KeychainHostedTests.swift",
+    "bytes": 12117,
+    "sha256": "255456a3a3b972d6b25ec85ebb1398ab0dab3e42fdff9c63b03d7aa90882d154"
+   },
+   {
+    "path": "Config/Info.plist",
+    "bytes": 493,
+    "sha256": "143f3cfb342d36d8a275924b85dc37e3e524ad1c2d93f73ee94fd604c5cca600"
+   },
+   {
+    "path": "Portlight.xcodeproj/project.pbxproj",
+    "bytes": 17992,
+    "sha256": "851c16a60bc161ec7edea7e4d49d932cdc5ccfcfb7d5794bd1125406f6738d7e"
+   },
+   {
+    "path": "Portlight.xcodeproj/xcshareddata/xcschemes/Portlight.xcscheme",
+    "bytes": 3879,
+    "sha256": "4bbfc71531acac75490c1dcd5d04f1cbb9b2a39cc12f22ab8255c73b1840d0f5"
+   },
+   {
+    "path": "PortlightKit/Package.swift",
+    "bytes": 799,
+    "sha256": "ba0f5c71704a976f5bbaae9062ee777c5180ddc87c28ec7a2d3bf348831195d1"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/PortlightKit.swift",
+    "bytes": 864,
+    "sha256": "f4427a6e7f11d11e37c9cca7b1d5c3ed846040a97f6aca76da7c8cef4defcc9f"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Audio/AACDecoding.swift",
+    "bytes": 3715,
+    "sha256": "cf1147b6e61bb41fcc3d7ff56977a5f3c8ced7822ffdf52b15de4b1695672eb9"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Audio/AudioEpochGate.swift",
+    "bytes": 3979,
+    "sha256": "f7af52bd4a3cc1bff2d522d18609372a00867a70a5c5329f8a9b6bbe40a19611"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Audio/AudioOutput.swift",
+    "bytes": 7575,
+    "sha256": "c0b3b9eaff8af507c0726044437b8a07144685c591860d7dcc792e5d991c647a"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Audio/AudioPacketDecoder.swift",
+    "bytes": 1109,
+    "sha256": "0d75c471789ce8a3b569e9624ac69e14ab14405de3c37ef89f9b455865b82383"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Audio/AudioPipeline.swift",
+    "bytes": 12220,
+    "sha256": "f041c59cc98b01e7772b2026a4059f4a90c97d28ccce40d6d90b5bf3cd3a4e30"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Audio/AudioSessionController.swift",
+    "bytes": 6493,
+    "sha256": "0931dbd2d99f78cd0251c95a815db5699fcc4e774688a5282f064ac24d6940ce"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Audio/AudioSessionPolicy.swift",
+    "bytes": 5122,
+    "sha256": "c284ef177b6eea5a1f1a1277231fd90e3aa7446db8d3ffd90c6961a69346ebac"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Audio/JitterBuffer.swift",
+    "bytes": 5919,
+    "sha256": "80acb8b6c6304b60df29cde9e20b9ad005cfaa7dd3effec00b8d501e42e3b039"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Audio/MuLaw.swift",
+    "bytes": 1477,
+    "sha256": "d4198bda26f00de21abe48101dbc761296605acaea8286b5b197dcbb1144e1ed"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Core/Messages.swift",
+    "bytes": 9781,
+    "sha256": "f487c44e96dbae265ec0097d0165595afb1370acb5cb8bba0b3a1e970513e5a8"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Core/Seams.swift",
+    "bytes": 9508,
+    "sha256": "5932688d1cd77245c197efdcecb9fcaff0508a03e4e651a13f064f4d6f29ff72"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Core/SessionTypes.swift",
+    "bytes": 12419,
+    "sha256": "bd68b1819d08f710279be55dc867ef90b671ad2fe7fec1f3984b06ae5240ac98"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Core/TransportSeams.swift",
+    "bytes": 3100,
+    "sha256": "2c8363b85059e60b979aa352813cf729ccd560741e7b67adb61b95af0d26ba06"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Core/Values.swift",
+    "bytes": 14975,
+    "sha256": "17b953ec8daa107260963a21481a70450eeb90507205eac9fa18733ddfe3ef36"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Engine/DecodePipeline.swift",
+    "bytes": 5270,
+    "sha256": "56d815f326c1f112d24fafeb4ee4c12e28a9a78ac6d63bf58bd1e7a100093797"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Engine/EngineAPI.swift",
+    "bytes": 9662,
+    "sha256": "47396aa158495f6c7c8de67cc59b1d1d2fe8acb8e3a1342ee07668aa54607b2a"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Engine/EngineTranscript.swift",
+    "bytes": 6562,
+    "sha256": "3ccaaca599f462378167cef2c9f62e7bd96317cc2ac0b58442b162fb2cc57d6a"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Engine/ReconnectPolicy.swift",
+    "bytes": 2449,
+    "sha256": "1edd0a9bb30c52351c2484baad7e9e5964c87b525cb9df9f582f4bba118bb73d"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Engine/SessionEngine+Inbound.swift",
+    "bytes": 15681,
+    "sha256": "6ef75d569a9abc23793fa9e8f7aa91d088fc2ec900368c2845b8e47dbe8a2f29"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Engine/SessionEngine.swift",
+    "bytes": 15167,
+    "sha256": "866fb1657ac66552075d3eca62f207c5408ec831c237252902260c78b38a0dc5"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Input/GestureConfiguration.swift",
+    "bytes": 2879,
+    "sha256": "143ea0c757b3a4e65963414bff7afd92481958a03c631ecb6e8e5b5047d1808c"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Input/GestureInterpreter+Touches.swift",
+    "bytes": 21927,
+    "sha256": "d942303343a386f833fcc6e04e29ada7b89bfdaadabb1a83fe09833b4f0a5dd8"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Input/GestureInterpreter.swift",
+    "bytes": 12023,
+    "sha256": "5e8c7880f2e2f10051e7f0f596fe8b003c18b0718db4f2e2865398fc43d8bf05"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Input/InputLedger.swift",
+    "bytes": 12773,
+    "sha256": "17313570e521fea889132a28a939dee84a37884ad4a4fd2a97251ac554d1e238"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Input/InputTypes.swift",
+    "bytes": 3115,
+    "sha256": "e06d733ac923dd189fa14572c0e98f73c76acfbbffbd1a4e95abc36aa3cd8fda"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Input/KeyMapping.swift",
+    "bytes": 8024,
+    "sha256": "ad674b30f095aaa83acfe0ebac6798e3e6d37cb24c37f5baa35e953279c127a5"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Input/ModifierLatches.swift",
+    "bytes": 2484,
+    "sha256": "ba3e57532b46ebb74d46038e1dae7a0290d399b1fe820d2975b0bf6378f7ea96"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Input/TextInput.swift",
+    "bytes": 4042,
+    "sha256": "213660e24709ceba070fcebbcda937300d4f3255424de16fd158e8084ef57236"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Persistence/ConnectionCredentials.swift",
+    "bytes": 16182,
+    "sha256": "6213552d3eabe7d2f2f2aca831dd319c1de70a9b53e5f0352970a55e19bac064"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Persistence/ConnectionDraft.swift",
+    "bytes": 11136,
+    "sha256": "0fcc9873152e1ac56ae94b6bc4953cc8050337390185023937b44998d2aae462"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Persistence/ConnectionProfile.swift",
+    "bytes": 11418,
+    "sha256": "b6c9a6576346ee506dbec2758a5dd4049a8fbca07184dcc140b1e6153564cf7a"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Persistence/PersistenceFiles.swift",
+    "bytes": 6438,
+    "sha256": "6fcfdf6714e8c133e0d491e9477fd0726521a86639cf83d6b6bf073c4b1d34a5"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Persistence/ProfileLibrary.swift",
+    "bytes": 13156,
+    "sha256": "4881c13a2ddb725d7cbf208531fbfdf74f98c9b5df73b5405a17c36f9f69b0ea"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Persistence/ProfileStore.swift",
+    "bytes": 8400,
+    "sha256": "fddfcbb0f1be9368c132f3275b58529ee4e5550c17978060f1d283e14f602387"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Persistence/SecretStores.swift",
+    "bytes": 10670,
+    "sha256": "6d0234328d25a934772eb19f341ba69d7490b2d87a39db99793d6410a6aa7c1f"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Persistence/TrustStores.swift",
+    "bytes": 8613,
+    "sha256": "79b18082b7eaebae770106f9f471b8396f88af200de40c4478e482e42d7f3693"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Protocol/WireDecoding.swift",
+    "bytes": 16655,
+    "sha256": "9007515d4f1b19ed5039422ca1800ba52a42e55200aac68b4350783de8cdb8b9"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Protocol/WireEncoding.swift",
+    "bytes": 6947,
+    "sha256": "6de58de82e8d2ffeb2cdc5df414ba1c6b389606c739152f9ee7f0932f3d1e0ae"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Protocol/WireJSON.swift",
+    "bytes": 9318,
+    "sha256": "8f7bfb39a50ae9c36ef9e4ee0bef75165b5ca56895b23dbbeab4791964dd2073"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Protocol/WireLimits.swift",
+    "bytes": 3244,
+    "sha256": "03e9feecf25d225ee19a47f2124fbb6fe18686b50e8a359ab7d9643b44f8c6fd"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Rendering/CoverageGrid.swift",
+    "bytes": 8018,
+    "sha256": "c523108d0e8d5ffd3bd7651c85481793f15ffba455e0281530ba16e993568da2"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Rendering/ImageTileDecoder.swift",
+    "bytes": 14658,
+    "sha256": "2493dfe04312d90bf3cf0a6e80753eff27252c8e17d45bd136f90e3633457b04"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Rendering/MetalFramebufferStore.swift",
+    "bytes": 19050,
+    "sha256": "4bcfed6e2f4daae91ebb2b082167952bfa90d1f8b1b89a5f4ff3e76cdb0b39c3"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Rendering/MetalRenderer.swift",
+    "bytes": 21005,
+    "sha256": "e7b61aecb680a054ea6a5eaab6eaa78b700425697783c2a4971482ee664f1e54"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Rendering/RenderBudget.swift",
+    "bytes": 2891,
+    "sha256": "1147d9191292f35fd0ad96bf59af654ad38c97eddc21406fc801767e22a66f51"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Rendering/RenderingError.swift",
+    "bytes": 1683,
+    "sha256": "8647554308af29e29b9c700008d9f858a7a46df7d4dfba1c26c548c74885b457"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Rendering/SoftwareFramebuffer.swift",
+    "bytes": 6126,
+    "sha256": "3c035bc7270a2800fdf0e7d9bdde1313eac74e5a034e12e3a0acd4a716ad94c7"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Rendering/SurfaceLedger.swift",
+    "bytes": 8882,
+    "sha256": "2d4a9b4aa8a0b1222f0a4bda75c2393a567d0fc6a6b2f53292475d395321de3e"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/DefaultSubscriptionPlanner.swift",
+    "bytes": 4975,
+    "sha256": "7134b2850ac6878ea88706ba3709c57866f44d5b1b15171b47dae6b6eb560c5c"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/DiagnosticsSnapshot.swift",
+    "bytes": 6092,
+    "sha256": "1b010e04d157f9909a678dd29736da77e58b0172010d24403d540eac58afd1a8"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/FileTranscriptSink.swift",
+    "bytes": 2155,
+    "sha256": "b371b44bcd5e5f1923ae4ec0df60f1bb92dd1f5947d2342dec703cc4113cf7d1"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/RegionScheduler.swift",
+    "bytes": 6079,
+    "sha256": "133897f2926dc5f30be807641838c9abd52a18bb9576c0943faa4ab50578fdc4"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/SessionController+Events.swift",
+    "bytes": 16084,
+    "sha256": "8066281506dccd37ede279d8389020ba2edb2632d43c0c51fe91cb8df34e7859"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/SessionController+Input.swift",
+    "bytes": 13658,
+    "sha256": "1504326e906d52db6069ae996bfc36ed284374bc8a61645620308ca7cebdfb89"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/SessionController+Lifecycle.swift",
+    "bytes": 2393,
+    "sha256": "3155f8a8cd4a8007f57087c5ef14bc97286d241b5ebca7574c8312644d433624"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/SessionController+Settings.swift",
+    "bytes": 10104,
+    "sha256": "5c15e5cd7606b868c36f35c451f91c7781f90f9c0fdc7475e076c82249207ace"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/SessionController.swift",
+    "bytes": 23587,
+    "sha256": "9b80ce11faf62f09e1e26451dde8a97fe06912d60683e0dfb6a5c2281d32f183"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/SessionEventInbox.swift",
+    "bytes": 4607,
+    "sha256": "deb60fae7ad37d37c136506a1e7ae79638fcc5a122afc236f22c0723fb031ac9"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/SessionPreferenceWriter.swift",
+    "bytes": 2566,
+    "sha256": "0828f5b9ca94fa0c9889e067ecd8ad501478c282d3021d782ed1f62b6f675861"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/SessionRenderStores.swift",
+    "bytes": 3036,
+    "sha256": "9d0161f60fda42d08c6a4f7aa47416afbad562cdbe54787934905fe1aa911f02"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/SessionSupport.swift",
+    "bytes": 9005,
+    "sha256": "ead06983ed808aa162ba0d026e75391ae774e5cbe520979a2fc190517104ad66"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Session/SystemAudioSessionControl.swift",
+    "bytes": 1240,
+    "sha256": "1f3609d69afa989c56c12099851f47eee2a91a3d4b6003b3b027611811af2a6e"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Transport/DeviceNetworkMonitor.swift",
+    "bytes": 2024,
+    "sha256": "c2243de8fe2b37a30f2ff1d6bebee38367e1da466a98e51c947712bfb0b5ac2e"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Transport/ServerTrustPolicy.swift",
+    "bytes": 1382,
+    "sha256": "382dff2da3880e3842a5d9ec05a5ffb3f8d1103176622d85a37bd1a77ff20481"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Transport/TransportConnection.swift",
+    "bytes": 12284,
+    "sha256": "ffaa303f644e1212c0f1dc036e141dddf08386960e8246e27e1a32560d9403bf"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Transport/TransportFailureClassifier.swift",
+    "bytes": 12852,
+    "sha256": "184a37b28f7caf70b4f869f7e064ad4f8d923f4ac93c5538da009c92f3437074"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Transport/TransportSocket.swift",
+    "bytes": 3347,
+    "sha256": "a09080b33d9002a4804e7e16698727ec2eed85801aa38bf437c9df413c10329f"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Transport/WebSocketTransport.swift",
+    "bytes": 4902,
+    "sha256": "e8104189a1ab7bbaf81a3847d68d021d9896a96d111970909ebc6da8870dee1c"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Viewport/DesktopLayout.swift",
+    "bytes": 3720,
+    "sha256": "2814a87df23589a2d77e3023ecf36b005767e36450cbb67a0f1b9d75ad368b04"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Viewport/DrawableGeometry.swift",
+    "bytes": 2020,
+    "sha256": "389263c1c33d99d3d45da8f83b6bdc2cadc5b83aeff3862f5c09ffaaa9a353f7"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Viewport/RegionPlanner.swift",
+    "bytes": 7259,
+    "sha256": "2e86d1974e97b7a053f70d21a245c15932b0a9ef8e16ac09d0392f37b0132f73"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Viewport/ViewportModel+Mapping.swift",
+    "bytes": 4296,
+    "sha256": "7c52e9acb7945d3d02836fea4f0c2272fec7196828d2fcdb9149e04166e88d3f"
+   },
+   {
+    "path": "PortlightKit/Sources/PortlightKit/Viewport/ViewportModel.swift",
+    "bytes": 17348,
+    "sha256": "fa29bcbdbb324ad5ac1f6d322268e84a800c33c2ff605a7d5c960d359dc21c25"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/SmokeTests.swift",
+    "bytes": 252,
+    "sha256": "06464236828ee572ac17c87e1908db35935677e3144fdc2caba8cc8f17e07a91"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Audio/AACDecodingTests.swift",
+    "bytes": 4850,
+    "sha256": "1ec2fb3173ada9811bfbdeb294d8d854446f7803886cee69e633c90da5e1e599"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Audio/AACFixtures.swift",
+    "bytes": 19238,
+    "sha256": "5c391fb1c9541b6e7f78c133c9d44c71720ed2d50b1ebc388ed3eb3f4f2c5389"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Audio/AudioEpochGateTests.swift",
+    "bytes": 6296,
+    "sha256": "f06f2c26ec209e872ba475d6be41115c2b0ecc1e5787ce6d4c4c777dd9d87e97"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Audio/AudioPipelineTests.swift",
+    "bytes": 13282,
+    "sha256": "f09cf1794d49b1deeeacd70ae91d94e5dadf849049b53b661b6d6640b51f1a6e"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Audio/AudioSessionPolicyTests.swift",
+    "bytes": 6489,
+    "sha256": "e466ce074a14701e81a2fdcbbb2d585d8366e7c6dedff9e3debde429a11e222f"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Audio/AudioTestSupport.swift",
+    "bytes": 9475,
+    "sha256": "e268e221581399937fd25d974bb501b8deba5c260aef9df3114f9fdc2b70a097"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Audio/EngineAudioOutputTests.swift",
+    "bytes": 4738,
+    "sha256": "e027633dce411fdd7728e83fd5d9c8886ff4c2f8291b779e1fc9b5f66b3e7d10"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Audio/JitterBufferTests.swift",
+    "bytes": 5988,
+    "sha256": "17bdf3fcaa04efcf029b21fc7c6620e580e3d24ef883059b152faaf493e5a9c4"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Audio/MuLawTests.swift",
+    "bytes": 2662,
+    "sha256": "297ce08ef63db848e35dce6f5c9ce605ac88b80326cd2922e238160672021712"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Engine/EngineConnectTests.swift",
+    "bytes": 12656,
+    "sha256": "4028a7375f3103aa334aa9b250447f3cb1309c7c4f64491af236b360b2a52aae"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Engine/EngineFakes.swift",
+    "bytes": 17002,
+    "sha256": "cf4279a34b645bd83ed0a4968da98342f51c50a11ab6ae07703f2c169dce4e51"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Engine/EngineFrameTests.swift",
+    "bytes": 10859,
+    "sha256": "a1975b577e3bc0524c42cedb77898d6aee3502c4f19fa088057d07eec9928c51"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Engine/EngineHarness.swift",
+    "bytes": 9973,
+    "sha256": "e48e37f58325343a463638972c8ed0422194a9bd9aef6ff2a8acf9882516e29d"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Engine/EngineRealFixtures.swift",
+    "bytes": 17925,
+    "sha256": "4930a0e3a9ab6c81ec3b4ac1719d656d9d7c9fcde1b2602d00657f5869df4628"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Engine/EngineRealPipelineTests.swift",
+    "bytes": 9620,
+    "sha256": "33ea4e8490a3690a9410ad9d38ed105bf1d0d755ca9c81fc62c57ddb68024fd4"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Engine/EngineRetirementTests.swift",
+    "bytes": 5787,
+    "sha256": "3ca2eb33b130759779b99b763ceb70a8e4e813e0a1e8959aba55261cded9fe4b"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Engine/EngineStreamingTests.swift",
+    "bytes": 6323,
+    "sha256": "63b5fbb85baea50790cc2d65a5b3b2a7c28bdc0ab579a194a00bd28e2fbf99f2"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Engine/EngineSubscriptionTests.swift",
+    "bytes": 15219,
+    "sha256": "1a549c563bd51b516e964b2d026f6388aaf57251d80f4b81a5fee164bf00e157"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Engine/ReconnectPolicyTests.swift",
+    "bytes": 4660,
+    "sha256": "964ca11291dbcbdfd9d7255639fa4d0b4a53468ca2a4270f80e3971ab3f0c39b"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Input/GestureConformanceTests.swift",
+    "bytes": 12372,
+    "sha256": "19d816a1ec59ae6ec440ef80a88f9fac5c37fd8c838b4f52b4924000b7254e53"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Input/GestureInterpreterTests.swift",
+    "bytes": 15252,
+    "sha256": "d472f404132696a8f84e8834e238cf7cb3e7051d77b92fcd589bbfd2411e025b"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Input/InputCrossDisplayTests.swift",
+    "bytes": 2253,
+    "sha256": "d4c4b72a5e9a66b61911f9b7cae642ea294e552a1034a6c4ad57810fdd79fdfb"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Input/InputLedgerTests.swift",
+    "bytes": 10218,
+    "sha256": "8e9f99f90a25ac0a679beae75cef6868137d67068f57c3104fff8a09da8fe8f3"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Input/InputReviewRegressionTests.swift",
+    "bytes": 11485,
+    "sha256": "3916c028da1146ec1ac9be9f791fb2b1fa07c4fe654eaee6ea74ee2041019d8a"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Input/InputTestSupport.swift",
+    "bytes": 5421,
+    "sha256": "0cd58dc087aeb9ef6143ee0a63b235d8a1eb56ebe0b1faa06e3dc0a464c87f4d"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Input/KeyboardInputTests.swift",
+    "bytes": 9747,
+    "sha256": "19821e433fceb4464160dcf0764401c15ebc69358e5480eec8ffd993da9cedab"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/ConnectionDraftTests.swift",
+    "bytes": 15508,
+    "sha256": "50a3901ccb2e17ee7c229bf7911db489117a91221b2fe596331c73d57cf05d60"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/CredentialsTests.swift",
+    "bytes": 20890,
+    "sha256": "5c6df7ccbbdadfa7c4b1a7f133bfcc8c516cfe7ea08c8c5221960d8c31939e53"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/EndpointURLTests.swift",
+    "bytes": 2210,
+    "sha256": "d155077163bc2a33f03fd1e36863cdc837d43a8a098d7b1b428c498be54606ca"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/FileProtectionTests.swift",
+    "bytes": 995,
+    "sha256": "d181624a512f740af2fac546ac4fd6d44b633b0ed5a93a99e4b46b725dc64c29"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/KeychainQueryTests.swift",
+    "bytes": 2676,
+    "sha256": "cd3b2a3ba72fdf44b5c296a61f881c81ff9448dbbfca821700394da29cf2e929"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/KeychainSecretStoreTests.swift",
+    "bytes": 4326,
+    "sha256": "ee5279863bc873d0b5108ee5f21d7c443efa42878f1e45bd509951efc55f74ab"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/PersistenceTestSupport.swift",
+    "bytes": 14947,
+    "sha256": "bcda599e68e55c0896970e4a864550b2c18b702c4aba70d2e67293d13b7adaee"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/ProfileLibraryTests.swift",
+    "bytes": 14364,
+    "sha256": "75cd58d349adde70c6bf51abcdd8c3a8ce6cfb2e47cf6a5f5229c5b4d7584d01"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/ProfileStoreTests.swift",
+    "bytes": 16715,
+    "sha256": "6b6e33e44e3428782c45179df8371bbcaa3a641287f0d809fba6b06f59dcb2e0"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/ProfileValueTests.swift",
+    "bytes": 10822,
+    "sha256": "c0bc85e5580c6bdea13e735c4a86f30d958b1a62c643f4279557117e921eff4b"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/SaveConnectionTests.swift",
+    "bytes": 18839,
+    "sha256": "39cbcb3e7d594cb65f26cba718ca1b31e1dafa73927bdd858dccfe17404cf41a"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Persistence/TrustStoreTests.swift",
+    "bytes": 11883,
+    "sha256": "09d6ab316e61ea43f72667ecf1b0e389241b702f5b10283bce80ab47b1c7f286"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Protocol/WireBinaryDecodingTests.swift",
+    "bytes": 17695,
+    "sha256": "e1d2dbdc0c1cf5a6784232af7d2982dd33463c75b40518e58128a1b2597a0ba4"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Protocol/WireEncodingTests.swift",
+    "bytes": 17107,
+    "sha256": "82c883895693b96364b0c99693b5ffd64b4575c8a9c18a4a5ba878714e26f7e7"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Protocol/WireExpectations.swift",
+    "bytes": 1461,
+    "sha256": "ff68757f661f3f690de92c310d79681ef7a2b1f62028f30e87659231d404d890"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Protocol/WireFixtures.swift",
+    "bytes": 11831,
+    "sha256": "1c2ac9facbf9ced86820ce0b7b23d27505285920a51bcafd007983c393ed8d0f"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Protocol/WireJSONTests.swift",
+    "bytes": 7122,
+    "sha256": "ac95e927bf84f1c146cddd14899508d58a208d8755e7e57e00d40318932b0dd7"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Protocol/WireTextDecodingTests.swift",
+    "bytes": 28663,
+    "sha256": "27523fd5d9210a7ff1a672d98fc5bfbe681af22e9db2848886e9ff150e26317b"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Rendering/CoverageGridTests.swift",
+    "bytes": 6284,
+    "sha256": "dd6bfb3ec5b18d72aea29f2e72468e295b28a25f51152ebf7e8abcba60cd4457"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Rendering/FramebufferTests.swift",
+    "bytes": 19590,
+    "sha256": "d79a6f0bb7c0d97e47fc071bb2182f908ee307ac4fd57ae5963c79a6661cd18e"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Rendering/ImageTileDecoderTests.swift",
+    "bytes": 10507,
+    "sha256": "a43737eb2b35ea487ec2c914df72dc59a756580bf1b77a39d1c2dbed510c642d"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Rendering/MetalRendererTests.swift",
+    "bytes": 15114,
+    "sha256": "0328a8b6a7fcc909d254baba0204fc21f2cc1aace1dd3b8d3bad5a62032d4d81"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Rendering/RenderBudgetTests.swift",
+    "bytes": 3373,
+    "sha256": "21e8f759af3a751800bd83a7f47aa7fb10c924a01772471df3f65405f3cf82e4"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Rendering/RenderingFixtures.swift",
+    "bytes": 9312,
+    "sha256": "d30778338cd27ee63a1a5978e9833ef03b842c6ecce8aac3d22f880cf8dcb8ca"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Rendering/RenderingReviewTests.swift",
+    "bytes": 23838,
+    "sha256": "8a47bb845cd29b028d1cb39f62d6309b96081bb359b22fafddf4a8a78865ccce"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Session/SessionConnectionTests.swift",
+    "bytes": 9922,
+    "sha256": "497a5d2b4bdac351d5c7f4d47121daf93bf6167db76759277eb1effd4fc0ee35"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Session/SessionHarness.swift",
+    "bytes": 12623,
+    "sha256": "6d76eb2ea851ecb2847434eae9b6949f3cd927465e2edff978cc2bacbc44634f"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Session/SessionInputTests.swift",
+    "bytes": 12633,
+    "sha256": "eb103396616c5dd07bb2872c1abb92d3a438408913cfce3f70a57eb1c0f72709"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Session/SessionLifecycleTests.swift",
+    "bytes": 7721,
+    "sha256": "3ac86383f54cdbbd6c0221890e196b46b967c125c55b540d0bb54c6bf51aa396"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Session/SessionNoJumpTests.swift",
+    "bytes": 4713,
+    "sha256": "8728b6a04b13524fa9a3fff298ef23edf969a7f1cae5d83bfe945e5b607a647f"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Session/SessionPartsTests.swift",
+    "bytes": 10588,
+    "sha256": "7706664f8d87f8cda0fc350606aa9d4d74a2813d30f2b39c8877af6e6bc9308d"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Session/SessionRegionTests.swift",
+    "bytes": 5164,
+    "sha256": "4e16b44b2812c83b39decf309bd544b8b7ef915f525d0689681e4af145827c23"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Session/SessionReviewAPITests.swift",
+    "bytes": 8457,
+    "sha256": "0b5adde8c095e70018bd4d4f47ac80b4124f8a7145f6a22a601c3c33175a7a45"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Session/SessionReviewRegressionTests.swift",
+    "bytes": 14273,
+    "sha256": "dd5bd9fc3d906285aefaa79db4e5cbf35b29ddf9e7c58a01cc2d7a88dfefbc1f"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Session/SessionSelectionTests.swift",
+    "bytes": 7983,
+    "sha256": "2c4477fff6c443c01cbf1deca2cbe985a629a483e0ef31ef5c7a404d4c0ba60b"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Session/SessionTestSupport.swift",
+    "bytes": 6577,
+    "sha256": "16e6f655c89000973ebc6e961b0a34ee8e1f3ff2a870b04d39e085955e3d31aa"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Transport/TransportClassificationTests.swift",
+    "bytes": 13715,
+    "sha256": "1f2c15fc8532f914ed6983f4425792bad1bb0b0144e9498b3402f14e73a4e30d"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Transport/TransportGenerationTests.swift",
+    "bytes": 17485,
+    "sha256": "cb3e3db6d2c0d40e6d8d25058734ec98fef470937fee6f2da115e0e58f373682"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Transport/TransportIntegrationSupport.swift",
+    "bytes": 24687,
+    "sha256": "d9f33b62f62179c98be1c3cfe7048d11e46685c22f6f38e0ebdcddbaee4d5f91"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Transport/TransportIntegrationTests.swift",
+    "bytes": 22565,
+    "sha256": "1aef8443d31161e792faa1769102ba94d2ff2ce72a1e406d5843560eda70327a"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Transport/TransportTestSupport.swift",
+    "bytes": 19636,
+    "sha256": "7976f43e16babb970b11f049e251ae9ecf08c46204edfd34915e57ea01789476"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Transport/TransportTrustTests.swift",
+    "bytes": 4273,
+    "sha256": "33265a3fa4366a71f4cb2abc1f45236b77b00864fba5b9346fb01180474a3bab"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Viewport/DesktopLayoutTests.swift",
+    "bytes": 8661,
+    "sha256": "29b256fd99e3d60140c8751f758ce8f919d0efa3bb5ad837793b01ebfb4befd4"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Viewport/DisplayGeometryTests.swift",
+    "bytes": 7611,
+    "sha256": "94ece0d21078c502e1e9fdefae51599c261242f91f43b388daf4c86329539660"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Viewport/NoJumpTests.swift",
+    "bytes": 10560,
+    "sha256": "4eb02df8e3835a79b444ed060c620549f8f2d34e2ffa01bd651f7e26fa6987b3"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Viewport/RegionPlannerTests.swift",
+    "bytes": 7197,
+    "sha256": "acd7031cac2eee619b1c739d2e1b229a99d6db37281e15664041e389fbfaf538"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Viewport/ViewportModelTests.swift",
+    "bytes": 18227,
+    "sha256": "bf5305d0ce4a41f2cc8411aa3f6f0791d6870a938fa771c549b42050c2d74151"
+   },
+   {
+    "path": "PortlightKit/Tests/PortlightKitTests/Viewport/ViewportTestSupport.swift",
+    "bytes": 3187,
+    "sha256": "5ea4c414c57c0c336915fc186c2f4d39c2a078d846f8afecf6a7715bb25ca8d8"
+   },
+   {
+    "path": "UITests/FixtureNetworkHelpers.swift",
+    "bytes": 8117,
+    "sha256": "e3b98f37e45b00a937d3d451c2f5dc1c363bef91bf47b7261886deb80b461896"
+   },
+   {
+    "path": "UITests/FixtureSessionTests.swift",
+    "bytes": 26455,
+    "sha256": "ea270107708d445542b8d3fd9ccb2efd1e2baf36a2e7ea64c15b0a7a78eb8ead"
+   },
+   {
+    "path": "UITests/GalleryScreenshotTests.swift",
+    "bytes": 21421,
+    "sha256": "238d1709b5aea669b8f75e1b000ced690365a843928a2b774009d13ea5c029af"
+   },
+   {
+    "path": "UITests/LaunchTests.swift",
+    "bytes": 449,
+    "sha256": "93e5cf31960f18b092b9fdf1ead4aa5429264bdb8c35651c5d9b05df9a4b872f"
+   },
+   {
+    "path": "docs/DEVICE-TEST-SCRIPT.md",
+    "bytes": 8767,
+    "sha256": "024bc07cdcbfb3cad6c7413cd4a134f64e481656f617d1a8af918bccbfd0b2ea"
+   },
+   {
+    "path": "docs/INSTALL.md",
+    "bytes": 3025,
+    "sha256": "2cbeddcd2c9ee2dd49aff6d9729b6aafe09a431d9b12b908527ce30d72d6affa"
+   },
+   {
+    "path": "docs/KNOWN-LIMITS.md",
+    "bytes": 4897,
+    "sha256": "336722c1234dabd1993c5438336b0b698f3991c829947375b1d0f61dacfa3497"
+   },
+   {
+    "path": "docs/SESSION-CONTROLLER-SPEC.md",
+    "bytes": 9475,
+    "sha256": "1104ab9bc7317f841a17c737a4536983eebf5a58170e392a97877653e11209fa"
+   },
+   {
+    "path": "docs/UI-SPEC.md",
+    "bytes": 13487,
+    "sha256": "89bc8d2b29c6689ff7a82986583a1ba0e257898f710d0c66afdf85a3fb8b4eaa"
+   },
+   {
+    "path": "scripts/build-simulator",
+    "bytes": 937,
+    "sha256": "20f085c726e937f00c6f3f011a26557902f8e5e07d319d0023f55c5830d0680d"
+   },
+   {
+    "path": "scripts/capture-ui",
+    "bytes": 1511,
+    "sha256": "707c55fde961955da45d1a52a0d91f1f7423a9393f2fa8c38930f9749d3110bf"
+   },
+   {
+    "path": "scripts/delivery-manifest.py",
+    "bytes": 7758,
+    "sha256": "b0370ff00502dcf5bffe44c86f28435fa96196856639a6172840bd4897d96544"
+   },
+   {
+    "path": "scripts/fixture-host",
+    "bytes": 2735,
+    "sha256": "c5666645e6f3d05745fa09e871a42ee300eb81f07af9007a8c4d75a15636f06c"
+   },
+   {
+    "path": "scripts/lib.sh",
+    "bytes": 7627,
+    "sha256": "41271acafbcf836ff805f057db1f38503e0685dbde5d756dab73e9c536ae978c"
+   },
+   {
+    "path": "scripts/mock-host-selftest.py",
+    "bytes": 62706,
+    "sha256": "721c087262ac36ec759cce1997c93e1140722b0369d9733dd05d436c8ebe396b"
+   },
+   {
+    "path": "scripts/mock-host.py",
+    "bytes": 88112,
+    "sha256": "01e9e6347c41a997f2a707c201fa1d79fc3e81df28caee0303e2f1369b9725ae"
+   },
+   {
+    "path": "scripts/quality02-check.py",
+    "bytes": 4598,
+    "sha256": "cb79cd48db8f67b1c33e4a3acf4935a12c7684ac574e375322af2b84fbacd642"
+   },
+   {
+    "path": "scripts/render-ios-icon.swift",
+    "bytes": 3480,
+    "sha256": "aa89f87f31930dfb41505031bf4222c07816f80f950853b1e55569e358b91594"
+   },
+   {
+    "path": "scripts/studio",
+    "bytes": 2314,
+    "sha256": "45551bcc0b44ba0fb13ed5621e253b7a87e609ccddee079415b2b96c4e90e842"
+   },
+   {
+    "path": "scripts/test-device",
+    "bytes": 3502,
+    "sha256": "9bf1479dcc0bbb216190578038690938ed0f2bbe64989fca2e0f3a3c42914200"
+   },
+   {
+    "path": "scripts/test-e2e",
+    "bytes": 9555,
+    "sha256": "eb81e10440b11e1fdad1fda966bc49da8a923e44218544a3f9a9083de209da0e"
+   },
+   {
+    "path": "scripts/test-integration",
+    "bytes": 1286,
+    "sha256": "e259473543ccfb3c2d52323fd861eb23c1e2db3c1970315297c683e13f56b5f9"
+   },
+   {
+    "path": "scripts/test-ui",
+    "bytes": 3525,
+    "sha256": "f71db086a275f56c65d80bd1906c26b98e09d8bf80fb22d86a0b2bc8b97b78a3"
+   },
+   {
+    "path": "scripts/test-unit",
+    "bytes": 588,
+    "sha256": "48f47ca1cbdcca89e2fc0e33262db5892cb6fe8a7e96a69d91d87c3117b3f154"
+   }
+  ]
+ },
+ "hostBrief": [
+  {
+   "path": "docs/host-next/ASTRA-PROMPT-PORTLIGHT-HOST-0.3.md",
+   "bytes": 18558,
+   "sha256": "9b34a9584a93a9a29179870b6c0da5a2d95f795b8a2fa6c5d9614644ef2eff61"
+  },
+  {
+   "path": "docs/host-next/evidence/capture-encoding.md",
+   "bytes": 20400,
+   "sha256": "6a2e5871cb6258360beadcbd1fb103c1b0c710683928be3cf891bc07d4a1c7a9"
+  },
+  {
+   "path": "docs/host-next/evidence/input-session-security.md",
+   "bytes": 22971,
+   "sha256": "9565a1dccbd1ca90ad654069e36ee6332c61e5767c587b4ad853bfa361440910"
+  },
+  {
+   "path": "docs/host-next/evidence/portlight-host-facts.md",
+   "bytes": 31829,
+   "sha256": "7c647a90d22f86f4c4bf2ee2a138f56b481f4d744914822c612f32c698d48ca2"
+  },
+  {
+   "path": "docs/host-next/evidence/tooling-verification.md",
+   "bytes": 23731,
+   "sha256": "0785dcca33efdd57136cdbfacbaf085c863853a443a3abdc43575a704178af61"
+  }
+ ],
+ "evidence": {
+  "files": [
+   {
+    "path": "evidence/build-simulator.log",
+    "bytes": 20550,
+    "sha256": "e459e91fbb2f7d1c131503505207575fcadac4947a508754a41815786450f075"
+   },
+   {
+    "path": "evidence/quality02-check.json",
+    "bytes": 497,
+    "sha256": "1b31e3e0c0b8158278c79fc6e4c274a527de043e8238391f84cc04889cce57f9"
+   },
+   {
+    "path": "evidence/swiftpm-integration-Mac.log",
+    "bytes": 4196,
+    "sha256": "9ee2e7ebc113765bba02ffbd9f748bd40d3a4375ab1194d3015b5ff00c45011a"
+   },
+   {
+    "path": "evidence/swiftpm-integration-RG-Book-16.log",
+    "bytes": 2956,
+    "sha256": "fb481e1bb9dc8f48ebf311f148014ac7a3f38fa96d707571bdc5219d9f183459"
+   },
+   {
+    "path": "evidence/swiftpm-unit-Mac.log",
+    "bytes": 123056,
+    "sha256": "cc1fe8daf615d79d1855123573b94f0632697d7b9acf15915290cf6f5e3654e4"
+   },
+   {
+    "path": "evidence/swiftpm-unit-RG-Book-16.log",
+    "bytes": 120215,
+    "sha256": "6621780336074bb1be538664f30323f961ccc1af7e3cf5cda67e0a209d61d8d8"
+   },
+   {
+    "path": "evidence/swiftpm-unit-RG-Mac-Studio.log",
+    "bytes": 129318,
+    "sha256": "74da13888f579c23c589756ed081f3e63c8026cc4edca3f1f77ae952aedd4e97"
+   },
+   {
+    "path": "evidence/xcode-app-unit.log",
+    "bytes": 19598,
+    "sha256": "e3cc021f19c134e9e102fe26ad2bdb603575bea63b63b9f894c5c6a80d3f567b"
+   },
+   {
+    "path": "evidence/xcode-kit-ios.log",
+    "bytes": 242958,
+    "sha256": "9e7f1c4ab216670ecc17b58d8d8ee467e3186604740ee690f4ca010565c01f15"
+   },
+   {
+    "path": "evidence/xcode-ui.log",
+    "bytes": 298124,
+    "sha256": "c410054468601a197de4a0e5f9ba53d665523759e606331a41753648c3478409"
+   },
+   {
+    "path": "evidence/xcode-unit.log",
+    "bytes": 1034,
+    "sha256": "c55a7ec8adf4f0dded6ab64c07d7c3c6104fda803fbb1d8ac7b2f468b92a509a"
+   },
+   {
+    "path": "evidence/e2e/connections-e2e-session-5EF7CA81-86C4-4407-A21D-0A00228F67B4.json",
+    "bytes": 644,
+    "sha256": "1ae86f8b3218305323270e22e5678695244fdacc053a2d05319ec6b49695a285"
+   },
+   {
+    "path": "evidence/e2e/connections-e2e-session-CF6636AA-C16B-4794-9D17-22B7C2DD124D.json",
+    "bytes": 644,
+    "sha256": "4ea84962319478ede10485214f758fbe6998f9a3c0c0c9b7fd37a6d5cfc1c628"
+   },
+   {
+    "path": "evidence/e2e/fixture-host.log",
+    "bytes": 1104,
+    "sha256": "5d810cebfcd85b3f0897ecb590058f6f01b786c2ccfc1fed634d49c5ac42aa6c"
+   },
+   {
+    "path": "evidence/e2e/portlight-transcript-busy.log",
+    "bytes": 99590,
+    "sha256": "953ef12f0f4eb8fa9f554dd631412225e1835c4cfe328074ba3d7eaac145103b"
+   },
+   {
+    "path": "evidence/e2e/portlight-transcript-lifecycle.log",
+    "bytes": 211652,
+    "sha256": "d465148fabb875b7ee31fe48cd631cb95c1444dc1d1624959d0f4353b35ae0b4"
+   },
+   {
+    "path": "evidence/e2e/portlight-transcript-no-route.log",
+    "bytes": 44,
+    "sha256": "26f49131872c0f6180cff29231c1859e6c4d0971f16d9b37661a4e01e418da4b"
+   },
+   {
+    "path": "evidence/e2e/portlight-transcript-refused.log",
+    "bytes": 44,
+    "sha256": "a34a2fd224fa4ef63aea93db6aca1edca49ff8b9d7210cd67e5da789c27618ed"
+   },
+   {
+    "path": "evidence/e2e/portlight-transcript-silent.log",
+    "bytes": 45,
+    "sha256": "ead2decf1798fc4db191028faf719963a081d21f89478491663f0321ae335247"
+   },
+   {
+    "path": "evidence/e2e/portlight-transcript-wrong-password.log",
+    "bytes": 317,
+    "sha256": "f4fd08b234638b4486eb1f3380e4d3f331b615f0c4298c9b56f213eb03824605"
+   },
+   {
+    "path": "evidence/e2e/portlight-transcript.log",
+    "bytes": 1053873,
+    "sha256": "aee6a1b66d9cd012f7359b3771ba530668ccfec4ec427b3194b683c2e1da3662"
+   },
+   {
+    "path": "evidence/e2e/xcresult-name.txt",
+    "bytes": 34,
+    "sha256": "111ef5128f95e5439eebfd068c45316ed9631a09b956e6c44340a668b791a941"
+   },
+   {
+    "path": "evidence/e2e/xcresult-summary.json",
+    "bytes": 705,
+    "sha256": "f285270e195d003e38d48618f01cff431319b5573df48bdd78c8f14d7f564dd3"
+   },
+   {
+    "path": "evidence/e2e/xcresult-tests.json",
+    "bytes": 4097,
+    "sha256": "3a60bb8a29ba2d33cee0980734f3e0d36822687a3e760215b49b859846d09c39"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-256-colors.png",
+    "bytes": 280737,
+    "sha256": "9cd95099fdef27b8f82eeb4cde6ae86c63d7ef08151d116ca5fc897302845e54"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-after-disconnect.png",
+    "bytes": 167004,
+    "sha256": "e780b6c6d8eea394f62e6391717abe5450a46b004ec176c39728c4724c53895c"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-app-switcher.png",
+    "bytes": 1312654,
+    "sha256": "f8e8f9dd4670527ecd550f4619525656bd79d6bbfdfe176555b2d13b55d57bd9"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-busy-then-connected.png",
+    "bytes": 285993,
+    "sha256": "116cb520f7861fb34a86d5d334d123a5980d8cef5ce29284d2fc282bf6524d47"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-busy.png",
+    "bytes": 260100,
+    "sha256": "f32f3a408c454e679e3d02c46fcc86b558bc8de7c6febcdd1ae8ce035ca4cb6a"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-connected-landscape.png",
+    "bytes": 359558,
+    "sha256": "cdaf98a56270c24dd656b3009684a73a650f41dac85dcf8d62d8160f274bd0ff"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-connected.png",
+    "bytes": 283051,
+    "sha256": "e2135982c4559c18a3e89245a2379d3231552b6a58f757e4cd4c929a4c68ce6a"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-context-menu-connected.png",
+    "bytes": 282344,
+    "sha256": "008c9634f8033804f8b6833578e99831c97987d57e91d46a1d36d8c9b54e3d8c"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-diagnostics.png",
+    "bytes": 253709,
+    "sha256": "aecea663153eb044122bb1d4f3788825ab0917da29b6f2bcbfab0010fb5b9427"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-display-2-off.png",
+    "bytes": 281046,
+    "sha256": "63092bd9bd43ebb1f2578e56ac174a73e719070f9e7de329430965b0d5ac37f0"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-displays-2-off-sheet.png",
+    "bytes": 251741,
+    "sha256": "e288ba8d0c85ef0435274f204c55923af0de27be4532a2d7a5ecd01ddaa0ba7b"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-displays-sheet.png",
+    "bytes": 250675,
+    "sha256": "17d921988cb5f7cac0ec98e1dec9d57416afe403589b46b28e138b436f4052b6"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-foreground-reconnected.png",
+    "bytes": 284712,
+    "sha256": "22cb8e76d02e4f1b0f87b5d4af4344d4846d3664f370cd3dce7a6d46c22f2b51"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-gesture-guide.png",
+    "bytes": 450635,
+    "sha256": "d6bb0725af7e31c3cc280ef0bc9d91b17b0ab3e1ef6bebf150ff6d8c75ce1427"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-no-route.png",
+    "bytes": 278774,
+    "sha256": "a4fe4f40dcedb07d3081822e2958dab4a253b4f9ee7ae1dc176d12b0b0730b91"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-paused.png",
+    "bytes": 701921,
+    "sha256": "d9801b6ecbabe716a9445dffbcea62ca8fad7c51cbe569ab506e77921bf0175d"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-quality.png",
+    "bytes": 286004,
+    "sha256": "54d6a19536893e821aea11976da9d58f4cbf0be2f2bdbfb10fb258a7541a5fd0"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-refused.png",
+    "bytes": 278637,
+    "sha256": "084edb0782ad2b4612d8b5785664d1a69d97ed67a58a29baaf57d31196c554a6"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-relaunch-form.png",
+    "bytes": 174491,
+    "sha256": "0ba3e592dec92499eb71ebefe3943e6f4d4830d8f6de77354d79ba355ea4cb8f"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-relaunch-list.png",
+    "bytes": 119314,
+    "sha256": "4763027f5863d81f02c274ed3521b87421acd444f1286aec806d25cb0e6ba723"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-saved-form.png",
+    "bytes": 168046,
+    "sha256": "081ba9316706ca9739bd8083967c55aed70487a9edd1b23818a13f15ed57c33f"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-saved-list.png",
+    "bytes": 118435,
+    "sha256": "c82e7971902995ad77a1808b4f40119d504a5d07ffbd28202e47df5052ff31f1"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-silent-host.png",
+    "bytes": 287965,
+    "sha256": "e12ea76ff25763802b84eb7d00646446ae09010e03df46626b3853244a9b4eba"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-trust-sheet.png",
+    "bytes": 174649,
+    "sha256": "fdd254be99c7419c22585dac8dbc2a4bd47f5da172479b3f3e5a3574c3f3038f"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-view-only.png",
+    "bytes": 292602,
+    "sha256": "33e73030212e7fefa75b74c143b2704cb33278c575c8803057f88d5768f21b43"
+   },
+   {
+    "path": "evidence/e2e/screenshots/fixture-wrong-password.png",
+    "bytes": 230900,
+    "sha256": "3a877b4bff0df306bb1b8cdbab1536f73467efc55bc8c307959a53d6eae2da13"
+   },
+   {
+    "path": "evidence/e2e/screenshots/index.tsv",
+    "bytes": 2277,
+    "sha256": "6c90a32b02fc49365092c273e5f86d59f657daf0d7ffd375c0b2a24042cd03f5"
+   },
+   {
+    "path": "evidence/screenshots/shell-dark.png",
+    "bytes": 107385,
+    "sha256": "01baa89d844792c1ca47d629243676d751b3a2acf6cbd1e28a31a55e5ae39aca"
+   },
+   {
+    "path": "evidence/screenshots/shell-light.png",
+    "bytes": 109632,
+    "sha256": "6adbbb8d240cd78cdcaa3bb9fe8d6505959e315bc3ff69c41e10a40b30a3a1ee"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-connections-empty.png",
+    "bytes": 116655,
+    "sha256": "137ced5dec8a39c7136e9f2276da20052f79fd217a0829f0c07815d92134e01f"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-connections.png",
+    "bytes": 149716,
+    "sha256": "fb6a0e3b82c542932904e8a5f06379283ad00c6b16ff636f203f1643295d8e8b"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-detail-new.png",
+    "bytes": 174821,
+    "sha256": "d24448c9ecf5f8370661d06dd979aaa619c20884cfa012d6ea9963cc0092b05c"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-detail-saved.png",
+    "bytes": 166160,
+    "sha256": "b9211fc72d06d6b107af9b7d24b304f97cd3e7531726524b86a93fd177dfe434"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-diagnostics.png",
+    "bytes": 221474,
+    "sha256": "62c88e833d84e4a67d7d4d28f63100bbc924afd04df7dac56d9321955f36e7e0"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-displays.png",
+    "bytes": 212832,
+    "sha256": "aa9102aaa06b65b0d02eca961fe9f6381bd0f049cdb39b5ddbe895fa0e890eee"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-failure-local-network.png",
+    "bytes": 131652,
+    "sha256": "36d8a3eaa7d0251e4d867347980968e6004e63fe79ed637d8febeb9c5f841e33"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-failure.png",
+    "bytes": 114126,
+    "sha256": "1ef45e33f804eb9c4559fc8ea76c5a1a32dca7a4ca760db22d836314971c8c44"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-gestures.png",
+    "bytes": 265111,
+    "sha256": "8a02b7673961264ee7ffaadac5bfa7d9cf89105156690c7259c0ec2ad6959d21"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-keyboard-live.png",
+    "bytes": 165726,
+    "sha256": "8647ad8100785cbfcade20d8dd9385b91befbed07aebc058f26ba14170916340"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-keyboard.png",
+    "bytes": 499578,
+    "sha256": "bc831d5d377f9fc56b03f4ede125f4d691034ef11561c4db460c2a9aa4f012fe"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-landscape-session-control.png",
+    "bytes": 609887,
+    "sha256": "e5506f12c7d959727cc292b32053fb971bc457ca2aa0e985df51f946ba6d59f3"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-landscape-session-paused.png",
+    "bytes": 939878,
+    "sha256": "405fac7a32029a8109b1d536f134e554d2247f99f77f0f13a482f8634f2ca144"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-privacy.png",
+    "bytes": 102286,
+    "sha256": "d0c72f745cbad8328c3adcdba2f1afea826d0cc3c089aed66ab2a84a738db1a5"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-quality.png",
+    "bytes": 262530,
+    "sha256": "adccf77e2b63797f9c380bb750c3379abde0bd438d5f43cb42c0ac15d822834a"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-session-contrast.png",
+    "bytes": 281762,
+    "sha256": "6f93f69a8af2e619bd5f4385661dedb256fdcfac408252eb216ebf6d745ffcd9"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-session-control.png",
+    "bytes": 399710,
+    "sha256": "4fe3938a676a1cb09131e2c7044eebba9a531db3f14510b834421ba0dcf704c1"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-session-empty.png",
+    "bytes": 284226,
+    "sha256": "db1be446db9d4d79974132bbad23f2210cde47ce085f1bb8eba7f1c6e1667a9e"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-session-hidden.png",
+    "bytes": 579392,
+    "sha256": "f9971db087d7dcfe6c0897e58a057f9800d106f9db5c34c3f7fdda11d055c0dc"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-session-notice.png",
+    "bytes": 429220,
+    "sha256": "d243b9fa4731f5e1cfe2f6628222e7def2240ef2ca62ea1fec9ccf2ccee534f0"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-session-paused.png",
+    "bytes": 710550,
+    "sha256": "8e2ef5cf514d46fb8027ee7cd9b3ba947b9991415bd3423af724b9aaa9d968b7"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-session-view-only.png",
+    "bytes": 759305,
+    "sha256": "a282bc542e1afec1a027e621164ede2ceff1174dbb6db8e0f56c778ded9964fe"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-status-connecting.png",
+    "bytes": 102647,
+    "sha256": "7da8ce978a5e4e1369c588b2c40dc9c413ec867acf159a8f8a0042986566ad65"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-status-reconnecting.png",
+    "bytes": 312446,
+    "sha256": "77e3e207416f4236f4f3d61c73223cb43e5f5f49950ff03fee9d403ebb6f6104"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-trust-changed.png",
+    "bytes": 220848,
+    "sha256": "a4c8cbf1fa8d9687805df212ead2bb2f22a5715c016c9820ed1d86d8c76d6853"
+   },
+   {
+    "path": "evidence/ui-gallery/dark-trust-first-use.png",
+    "bytes": 171677,
+    "sha256": "46f9c0d5cdbe4496d4814e399b723988a5b0ea54f0eca91a82c7aa69d4a88c59"
+   },
+   {
+    "path": "evidence/ui-gallery/experiment-ax5-connections-empty.png",
+    "bytes": 258657,
+    "sha256": "69060ea91275c6aa4e0675135cfd31797b7337eb3dba58a7beb2b98182916f76"
+   },
+   {
+    "path": "evidence/ui-gallery/experiment-ax5-connections.png",
+    "bytes": 218097,
+    "sha256": "4fd469ffa982252423ca502de7f7bef848453e70fcf286dd7fa0ff775e65899f"
+   },
+   {
+    "path": "evidence/ui-gallery/experiment-ax5-detail-saved.png",
+    "bytes": 180289,
+    "sha256": "90362a904ad7a9e16802df7f4173448a40a99897fcb40eaa00a1a173ca3b37a2"
+   },
+   {
+    "path": "evidence/ui-gallery/experiment-ax5-diagnostics.png",
+    "bytes": 270075,
+    "sha256": "5ae50e13e5b06289859e69d289d6526c78ce91e785ca43aaf7472eb522f1f10a"
+   },
+   {
+    "path": "evidence/ui-gallery/experiment-ax5-failure-local-network.png",
+    "bytes": 978785,
+    "sha256": "859e09a0c9b7d8a283a3960429a4ee9356f68860fd9ffdb0ddcb8a5fdffd1ca8"
+   },
+   {
+    "path": "evidence/ui-gallery/experiment-ax5-quality.png",
+    "bytes": 219805,
+    "sha256": "b7313c4fd1ac2af3b0e401cf79a9d9368357e662fbdb1d42bd4fdf2463aecb3f"
+   },
+   {
+    "path": "evidence/ui-gallery/experiment-ax5-session-paused.png",
+    "bytes": 1124597,
+    "sha256": "756c0fbc32264c2f6d83111fe8dae7b95850b35a0c8e3001f0d5fcbf1bd1a497"
+   },
+   {
+    "path": "evidence/ui-gallery/experiment-ax5-status-connecting.png",
+    "bytes": 950316,
+    "sha256": "215264f8fdb933f5ef30f279c4f7d8f6e53deb16d31e3ef9dfa7d420e4847b19"
+   },
+   {
+    "path": "evidence/ui-gallery/index.tsv",
+    "bytes": 4593,
+    "sha256": "509f521e74dfa3de05eb9c7ab1808aea050f5bb113b0f2733f3460f692deb093"
+   },
+   {
+    "path": "evidence/ui-gallery/large-text-connections.png",
+    "bytes": 228372,
+    "sha256": "11a28db857ee1746740824bf8191d140cc84dd4397437629b024c05964da13f8"
+   },
+   {
+    "path": "evidence/ui-gallery/large-text-detail-saved.png",
+    "bytes": 194690,
+    "sha256": "97701e8bf2864de9b9742617961890891325292df7b304174a1121872c210c23"
+   },
+   {
+    "path": "evidence/ui-gallery/large-text-displays.png",
+    "bytes": 306856,
+    "sha256": "748d7fafb884ca0a6506808c66a5dc9ec891fc5262c53b7f8f7f297bdc6e1f60"
+   },
+   {
+    "path": "evidence/ui-gallery/large-text-keyboard.png",
+    "bytes": 570424,
+    "sha256": "d0c36f0e608fce3200fb47eed65b2c7ca6d9026b8a65ccf4d9822424c9e63c12"
+   },
+   {
+    "path": "evidence/ui-gallery/large-text-quality.png",
+    "bytes": 220015,
+    "sha256": "3a742d2715a99fb30264390a61b25cb211c9ca494c78db1149fec55ef2c0cb04"
+   },
+   {
+    "path": "evidence/ui-gallery/large-text-session-control.png",
+    "bytes": 454744,
+    "sha256": "e2b39098f62f0d81ef4bc0aebb9f58c4290703b3eeb8e8928ed5be8c1789bb26"
+   },
+   {
+    "path": "evidence/ui-gallery/large-text-trust-changed.png",
+    "bytes": 231359,
+    "sha256": "db15c2a0bfbb1991f445880b8d9264a7c0c72cddb55b61a121527e01c76358e1"
+   },
+   {
+    "path": "evidence/ui-gallery/launch-connections.png",
+    "bytes": 136305,
+    "sha256": "f28981f69dbda6114ecf2a6b5fec0e7aaefd2e46d1b1491a0ce39c6e5860f2c2"
+   },
+   {
+    "path": "evidence/ui-gallery/light-connections-empty.png",
+    "bytes": 137095,
+    "sha256": "f1800c667d729b1c676790341c86cc2c0b7672648783965f24db3cee7b283137"
+   },
+   {
+    "path": "evidence/ui-gallery/light-connections.png",
+    "bytes": 173926,
+    "sha256": "c7b4615b3eef5cd5409aab1441916226f2eb80a63fd6f49367c6bbf36317c288"
+   },
+   {
+    "path": "evidence/ui-gallery/light-detail-new.png",
+    "bytes": 177488,
+    "sha256": "576838b142335d1be07c3f72cdf40ae53da74838348465a02e7667dd7787ff07"
+   },
+   {
+    "path": "evidence/ui-gallery/light-detail-saved.png",
+    "bytes": 168740,
+    "sha256": "9a2a5e32a4a0ed043c73f7c14de72956958e02d05de2d059c335d999579915a9"
+   },
+   {
+    "path": "evidence/ui-gallery/light-diagnostics.png",
+    "bytes": 247116,
+    "sha256": "40f0e3f2bc5d70d8caf3f5504b1905c8cfc36859a4c534a91855ae64e928495c"
+   },
+   {
+    "path": "evidence/ui-gallery/light-displays.png",
+    "bytes": 239893,
+    "sha256": "0778d0aca27ec0987950b40ad93f0d9b397a9142056b53532e461da150008f37"
+   },
+   {
+    "path": "evidence/ui-gallery/light-failure-local-network.png",
+    "bytes": 318613,
+    "sha256": "3e0b55b57ac2a22db189023455b8d6a61858522713e50aaa2d5350e55c17a13f"
+   },
+   {
+    "path": "evidence/ui-gallery/light-failure.png",
+    "bytes": 279406,
+    "sha256": "b6dec751859c389db7de163f3c52e38b8c7a717ddae59a6bbfc4a39de1deca28"
+   },
+   {
+    "path": "evidence/ui-gallery/light-gestures.png",
+    "bytes": 288669,
+    "sha256": "fd52e8d5d11fc79e538daecbc4757de57d3863d95bfe5c046cb978e87b562511"
+   },
+   {
+    "path": "evidence/ui-gallery/light-keyboard-live.png",
+    "bytes": 169597,
+    "sha256": "279c19aa8dae476195d7209701507690ef4018b20322a8c77463f5fdcb529621"
+   },
+   {
+    "path": "evidence/ui-gallery/light-keyboard.png",
+    "bytes": 527611,
+    "sha256": "b04e88afa544788f910302ce64e4beb6db8ea25912b9c9075840a4a317e4ffa6"
+   },
+   {
+    "path": "evidence/ui-gallery/light-landscape-session-control.png",
+    "bytes": 674007,
+    "sha256": "6fdcf9d8628871724117081d2dcc9565f7e4bdd8ad3abcc880b95fa6f34a6da1"
+   },
+   {
+    "path": "evidence/ui-gallery/light-landscape-session-paused.png",
+    "bytes": 1004752,
+    "sha256": "518b5c2723c4c38a7ef5f3cf9857fed3a5e8a4b510f4686599774871f1e7ce27"
+   },
+   {
+    "path": "evidence/ui-gallery/light-privacy.png",
+    "bytes": 120837,
+    "sha256": "498392de9697183fc1b837ca9200af1dc11801e9c7154d0c7a9949827e3b9c70"
+   },
+   {
+    "path": "evidence/ui-gallery/light-quality-qhd-video-256.png",
+    "bytes": 287521,
+    "sha256": "43b2f8c5457a97d1ca25e8fa55ed597e9e146bcd5bbeb49dbd94fb6c76fd8dad"
+   },
+   {
+    "path": "evidence/ui-gallery/light-quality.png",
+    "bytes": 285282,
+    "sha256": "61a50b56d0cf35c01ba2cec3d3c164db4f8e32c5e1bb830de9cc825bc8be2e6b"
+   },
+   {
+    "path": "evidence/ui-gallery/light-session-contrast.png",
+    "bytes": 283684,
+    "sha256": "5236dbdb5faf346f88813cd68f92268f9e6c8bbed443d29ddb8d8b1a0791f363"
+   },
+   {
+    "path": "evidence/ui-gallery/light-session-control.png",
+    "bytes": 450170,
+    "sha256": "c6d25996e6cd2d8e95c518750ad1315003525cd5d1abd9b6b90ce06b1e08236a"
+   },
+   {
+    "path": "evidence/ui-gallery/light-session-empty.png",
+    "bytes": 331623,
+    "sha256": "225c8dac0b1c1eaa431fde204f12e65addab068628b55fd597e0d4f65dc28b81"
+   },
+   {
+    "path": "evidence/ui-gallery/light-session-hidden.png",
+    "bytes": 580874,
+    "sha256": "2d529c213cddba26bfb1da54c27649e9cd33b4f52ea3fc66e7603fdafee8c8de"
+   },
+   {
+    "path": "evidence/ui-gallery/light-session-notice.png",
+    "bytes": 481437,
+    "sha256": "496509086c6c93654da4e779c16d545f5f87df42a826a2bdabe768af3bbc2a2c"
+   },
+   {
+    "path": "evidence/ui-gallery/light-session-paused-after-tap.png",
+    "bytes": 769925,
+    "sha256": "536556370fc42fe51b6383daca14f1021b85be419447543bddce9c063e794d2d"
+   },
+   {
+    "path": "evidence/ui-gallery/light-session-paused.png",
+    "bytes": 757573,
+    "sha256": "fa1b68688377adea3d51410006945a3b6676f4fddd74c37724671c1449b2af3d"
+   },
+   {
+    "path": "evidence/ui-gallery/light-session-view-only-after-tap.png",
+    "bytes": 472769,
+    "sha256": "15cd06eef9a5b4f73bf8bbd6a7eb85f1d0f4dc5e3bff117df4639f4bf6d66e14"
+   },
+   {
+    "path": "evidence/ui-gallery/light-session-view-only.png",
+    "bytes": 811688,
+    "sha256": "3d8cfd324c47448d5cac59d776f2eff4afa599b5eb7225569ae9b6a1f134b153"
+   },
+   {
+    "path": "evidence/ui-gallery/light-status-connecting.png",
+    "bytes": 245736,
+    "sha256": "2db063fa90ae74bdf0635f291e4f05bfc5214b41babb3c450b1f780087a25ffd"
+   },
+   {
+    "path": "evidence/ui-gallery/light-status-reconnecting.png",
+    "bytes": 358956,
+    "sha256": "4b57f1ec8730f0a92d37ebe08ac78ff481446ef3360779fcb26dba7d81dccf72"
+   },
+   {
+    "path": "evidence/ui-gallery/light-trust-changed.png",
+    "bytes": 215791,
+    "sha256": "1e575f9afad9f8e02da4c9420c5b517ece9985b53237adaa2a010f78673930cb"
+   },
+   {
+    "path": "evidence/ui-gallery/light-trust-first-use.png",
+    "bytes": 163851,
+    "sha256": "e001ee6cb73a3fb9834e36aa1b4690c09a55276c5010867be30adc7fee2865f1"
+   },
+   {
+    "path": "evidence/ui-gallery/xcode-ui-gallery.log",
+    "bytes": 186246,
+    "sha256": "fe2d7eb5359e9de52273215806e5ffa581bcc3bad9a8a916ab69b1f3a3be8da4"
+   }
+  ],
+  "resultBundles": [
+   {
+    "path": "evidence/xcode-app-unit-20260910-215222.xcresult",
+    "bytes": 288013
+   },
+   {
+    "path": "evidence/xcode-app-unit-20260911-010431.xcresult",
+    "bytes": 291381
+   },
+   {
+    "path": "evidence/xcode-app-unit-20260911-024351.xcresult",
+    "bytes": 365314
+   },
+   {
+    "path": "evidence/xcode-app-unit-20260911-040437.xcresult",
+    "bytes": 17297189
+   },
+   {
+    "path": "evidence/xcode-app-unit-20260911-041752.xcresult",
+    "bytes": 17496340
+   },
+   {
+    "path": "evidence/xcode-app-unit-20260911-050626.xcresult",
+    "bytes": 17218103
+   },
+   {
+    "path": "evidence/xcode-app-unit-20260911-065833.xcresult",
+    "bytes": 17482146
+   },
+   {
+    "path": "evidence/xcode-kit-ios-20260910-214311.xcresult",
+    "bytes": 248069
+   },
+   {
+    "path": "evidence/xcode-kit-ios-20260910-215200.xcresult",
+    "bytes": 280192
+   },
+   {
+    "path": "evidence/xcode-kit-ios-20260911-010405.xcresult",
+    "bytes": 1003938
+   },
+   {
+    "path": "evidence/xcode-kit-ios-20260911-024317.xcresult",
+    "bytes": 1319255
+   },
+   {
+    "path": "evidence/xcode-kit-ios-20260911-040405.xcresult",
+    "bytes": 1347063
+   },
+   {
+    "path": "evidence/xcode-kit-ios-20260911-041727.xcresult",
+    "bytes": 1341361
+   },
+   {
+    "path": "evidence/xcode-kit-ios-20260911-050554.xcresult",
+    "bytes": 1350916
+   },
+   {
+    "path": "evidence/xcode-kit-ios-20260911-065750.xcresult",
+    "bytes": 1394968
+   },
+   {
+    "path": "evidence/xcode-ui-20260910-215246.xcresult",
+    "bytes": 32345321
+   },
+   {
+    "path": "evidence/xcode-ui-20260910-220037.xcresult",
+    "bytes": 389277
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-024410.xcresult",
+    "bytes": 25914037
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-040511.xcresult",
+    "bytes": 25377683
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-041102.xcresult",
+    "bytes": 43825580
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-041813.xcresult",
+    "bytes": 67712425
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-042620.xcresult",
+    "bytes": 25374357
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-043217.xcresult",
+    "bytes": 30395354
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-045656.xcresult",
+    "bytes": 32913174
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-050943.xcresult",
+    "bytes": 256295210
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-052146.xcresult",
+    "bytes": 36256786
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-054450.xcresult",
+    "bytes": 227933548
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-061519.xcresult",
+    "bytes": 221114170
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-063039.xcresult",
+    "bytes": 272163095
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-064755.xcresult",
+    "bytes": 2042277
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-065858.xcresult",
+    "bytes": 25273132
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-071010.xcresult",
+    "bytes": 36757218
+   },
+   {
+    "path": "evidence/xcode-ui-20260911-071910.xcresult",
+    "bytes": 25087921
+   },
+   {
+    "path": "evidence/xcode-unit-20260910-214220.xcresult",
+    "bytes": 248232
+   }
+  ]
+ }
+}

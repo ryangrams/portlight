@@ -1,0 +1,12 @@
+#!/bin/bash
+# Unit tests. Always runs PortlightKit on this Mac through SwiftPM; when Xcode is available it
+# also runs PortlightKit and the app's unit tests on an iOS Simulator into an .xcresult.
+# Fails when a runner executes zero tests. Optional argument: a SwiftPM --filter expression.
+source "$(dirname "$0")/lib.sh"
+run_swiftpm_tests unit "${1:-}"
+if have_xcode; then
+  run_xcode_tests kit-ios PortlightKit
+  run_xcode_tests app-unit Portlight -only-testing:PortlightTests
+else
+  log "Xcode unavailable here: iOS Simulator unit run skipped (use scripts/studio scripts/test-unit)"
+fi

@@ -1,7 +1,7 @@
 101 ICON "../branding/Portlight.ico"
 1 VERSIONINFO
-FILEVERSION 0,2,0,0
-PRODUCTVERSION 0,2,0,0
+FILEVERSION 0,2,0,1
+PRODUCTVERSION 0,2,0,1
 FILETYPE 1
 BEGIN
  BLOCK "StringFileInfo"
@@ -18,3 +18,6 @@ BEGIN
   VALUE "Translation", 0x409, 1200
  END
 END
+
+// Synthetic, locally generated Mac AAC samples for silent --self-test decoding.
+102 RCDATA "tests/aac-fixtures.json"

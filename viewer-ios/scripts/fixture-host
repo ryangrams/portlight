@@ -1,0 +1,64 @@
+#!/bin/bash
+# Start or stop an isolated Portlight fixture host (synthetic displays, no capture, no input
+# injection) on an unused loopback port with a temporary data directory.
+#   eval "$(scripts/fixture-host start [--dense] [--inflight N])"   # exports PORTLIGHT_FIXTURE_*
+#   scripts/fixture-host stop "$PORTLIGHT_FIXTURE_STATE"
+# The fixture password is synthetic test data passed on stdin, never a studio credential.
+source "$(dirname "$0")/lib.sh"
+
+command="${1:-}"; [[ $# -gt 0 ]] && shift
+case "$command" in
+start)
+  extra=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dense) extra+=(--fixture-dense);;
+      --inflight) extra+=(--fixture-inflight "$2"); shift;;
+      *) die "unknown option: $1";;
+    esac
+    shift
+  done
+  exe="$(ensure_fixture_host)"
+  state="$(mktemp -d "${TMPDIR:-/tmp}/portlight-fixture.XXXXXX")"
+  port="$(free_port)"
+  password="${PORTLIGHT_FIXTURE_PASSWORD:-fixture-password}"
+  printf '%s\n' "$password" > "$state/stdin"
+  "$exe" --fixture --port "$port" --data-dir "$state/data" --password-stdin ${extra[@]+"${extra[@]}"} \
+    < "$state/stdin" > "$state/host.log" 2>&1 &
+  pid=$!
+  rm -f "$state/stdin"
+  fingerprint=""
+  for _ in $(seq 1 150); do
+    kill -0 "$pid" 2>/dev/null || { cat "$state/host.log" >&2; die "fixture host exited during startup"; }
+    fingerprint="$(sed -n 's/^TLS SHA256 //p' "$state/host.log" | head -1)"
+    if [[ -n "$fingerprint" ]] && nc -z 127.0.0.1 "$port" 2>/dev/null; then break; fi
+    sleep 0.1
+  done
+  [[ -n "$fingerprint" ]] || { kill "$pid" 2>/dev/null; cat "$state/host.log" >&2; die "fixture host did not report a certificate fingerprint"; }
+  {
+    printf 'export PORTLIGHT_FIXTURE_PID=%q\n' "$pid"
+    printf 'export PORTLIGHT_FIXTURE_HOST=127.0.0.1\n'
+    printf 'export PORTLIGHT_FIXTURE_PORT=%q\n' "$port"
+    printf 'export PORTLIGHT_FIXTURE_FINGERPRINT=%q\n' "$fingerprint"
+    printf 'export PORTLIGHT_FIXTURE_PASSWORD=%q\n' "$password"
+    printf 'export PORTLIGHT_FIXTURE_STATE=%q\n' "$state"
+  } | tee "$state/env"
+  log "Fixture host pid $pid on 127.0.0.1:$port (state $state)"
+  ;;
+stop)
+  state="${1:-${PORTLIGHT_FIXTURE_STATE:-}}"
+  [[ -n "$state" && -f "$state/env" ]] || die "usage: scripts/fixture-host stop <state-dir>"
+  pid="$(sed -n 's/^export PORTLIGHT_FIXTURE_PID=//p' "$state/env")"
+  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    for _ in $(seq 1 50); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+  case "$state" in
+    */portlight-fixture.*) rm -rf "$state";;
+    *) log "not removing unexpected state path $state";;
+  esac
+  log "Fixture host stopped"
+  ;;
+*) die "usage: scripts/fixture-host start|stop";;
+esac

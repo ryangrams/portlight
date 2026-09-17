@@ -22,3 +22,4 @@ verification/
 __pycache__/
 *.pyc
 branding/Portlight.iconset/
+server-macos/build-media/

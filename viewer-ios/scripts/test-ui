@@ -1,0 +1,72 @@
+#!/bin/bash
+# UI tests on an iOS Simulator into an .xcresult; exports attachments to evidence/attachments/ and the gallery's
+# screenshots to evidence/ui-gallery/, also when a test fails.
+#   scripts/test-ui                      # every PortlightUITests case
+#   scripts/test-ui LaunchTests          # one class (or Class/testMethod)
+# evidence/ui-gallery holds the PNGs of GalleryScreenshotTests and LaunchTests under their attachment names, with
+# index.tsv (name, test). A full run replaces it; a class or method run updates the screenshots it took; a run
+# without gallery screenshots (FixtureSessionTests, from scripts/test-e2e) leaves it alone.
+# Environment for the tests (e.g. PORTLIGHT_FIXTURE_*) is forwarded with the TEST_RUNNER_ prefix.
+source "$(dirname "$0")/lib.sh"
+require_xcode
+selector="PortlightUITests${1:+/$1}"
+full_run=0; [[ -z "${1:-}" ]] && full_run=1
+for name in $(compgen -e | grep '^PORTLIGHT_' || true); do export "TEST_RUNNER_$name=${!name}"; done
+
+export_attachments() {
+  [[ -n "${LAST_XCRESULT:-}" && -d "$LAST_XCRESULT" ]] || return 0
+  local out="$EVIDENCE_DIR/attachments/$(basename "$LAST_XCRESULT" .xcresult)"
+  mkdir -p "$out"
+  if xcrun xcresulttool export attachments --path "$LAST_XCRESULT" --output-path "$out" >/dev/null 2>&1; then
+    log "Exported UI attachments to $out ($(find "$out" -type f -name '*.png' | wc -l | tr -d ' ') screenshots)"
+    export_gallery "$out" || log "Could not update $EVIDENCE_DIR/ui-gallery"
+  else
+    log "No attachments exported from $LAST_XCRESULT"
+  fi
+}
+
+export_gallery() {
+  local summary
+  summary="$(python3 - "$1" "$EVIDENCE_DIR/ui-gallery" "$full_run" <<'PY'
+import json, os, re, shutil, sys
+
+attachments, out, full = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
+manifest = os.path.join(attachments, "manifest.json")
+tests = json.load(open(manifest)) if os.path.exists(manifest) else []
+shots = []
+for test in tests:
+    test_id = test.get("testIdentifier", "")
+    if not test_id.startswith(("GalleryScreenshotTests/", "LaunchTests/")):
+        continue
+    for item in test.get("attachments", []):
+        # "light-failure_0_<UUID>.png" → "light-failure.png", as scripts/test-e2e names its screenshots.
+        name = re.sub(r"_\d+_[0-9A-F-]{36}(\.\w+)$", r"\1", item.get("suggestedHumanReadableName", item["exportedFileName"]))
+        source = os.path.join(attachments, item["exportedFileName"])
+        if name.endswith(".png") and os.path.exists(source):
+            shots.append(("failure-" + name if item.get("isAssociatedWithFailure") else name, source, test_id))
+if not shots:
+    sys.exit(0)
+os.makedirs(out, exist_ok=True)
+index_path = os.path.join(out, "index.tsv")
+if full:
+    for name in os.listdir(out):
+        if name.endswith(".png") or name == "index.tsv":
+            os.remove(os.path.join(out, name))
+index = {}
+if os.path.exists(index_path):
+    for line in open(index_path).read().splitlines():
+        name, _, test_id = line.partition("\t")
+        index[name] = test_id
+for name, source, test_id in shots:
+    shutil.copy(source, os.path.join(out, name))
+    index[name] = test_id
+lines = [f"{name}\t{test_id}" for name, test_id in sorted(index.items()) if os.path.exists(os.path.join(out, name))]
+open(index_path, "w").write("\n".join(lines) + "\n")
+print(f"Copied {len(shots)} gallery screenshots to {out} ({len(lines)} in index.tsv)")
+PY
+)" || return 1
+  [[ -z "$summary" ]] || log "$summary"
+}
+XCODE_FAILURE_HOOK=export_attachments
+run_xcode_tests ui Portlight "-only-testing:$selector"
+export_attachments

@@ -6,6 +6,11 @@ struct RemoteMonitor: Codable, Equatable {
     let name: String
     let width: Int
     let height: Int
+    var logicalX: Double = 0
+    var logicalY: Double = 0
+    var logicalWidth: Double = 0
+    var logicalHeight: Double = 0
+    var logicalFrame:CGRect { CGRect(x:logicalX,y:logicalY,width:logicalWidth > 0 ? logicalWidth : Double(width),height:logicalHeight > 0 ? logicalHeight : Double(height)) }
     var number: Int = 0
     var frameWidth: Int = 0
     var frameHeight: Int = 0
@@ -50,13 +55,25 @@ struct ViewPreset: Codable {
     var fullScreen: Bool
     var zeroTierNetwork: String?
     var zeroTierManaged: [String]?
+    var groupID: String?
+    var order: Int?
+    var disconnectZeroTier: Bool?
+    var audioBitrate: Int?
 }
 
+struct PresetGroup: Codable { var id:String; var name:String; var order:Int }
+
 final class PresetStore {
+    private let defaults:UserDefaults
+    init(defaults:UserDefaults = .standard) { self.defaults = defaults }
+    var groups:[PresetGroup] {
+        get { guard let data = defaults.data(forKey:"Portlight.PresetGroups") else { return [] }; return (try? JSONDecoder().decode([PresetGroup].self,from:data)) ?? [] }
+        set { if let data = try? JSONEncoder().encode(newValue) { defaults.set(data,forKey:"Portlight.PresetGroups") } }
+    }
     private let key = "SU.Remote.Presets.v1"
     var presets: [ViewPreset] {
-        get { guard let data = UserDefaults.standard.data(forKey:key) else { return [] }; return (try? JSONDecoder().decode([ViewPreset].self,from:data)) ?? [] }
-        set { if let data = try? JSONEncoder().encode(newValue) { UserDefaults.standard.set(data,forKey:key) } }
+        get { guard let data = defaults.data(forKey:key) else { return [] }; return (try? JSONDecoder().decode([ViewPreset].self,from:data)) ?? [] }
+        set { if let data = try? JSONEncoder().encode(newValue) { defaults.set(data,forKey:key) } }
     }
     func save(_ preset: ViewPreset) { var list = presets; if let i = list.firstIndex(where:{$0.id == preset.id}) { list[i] = preset } else { list.append(preset) }; presets = list }
 }
