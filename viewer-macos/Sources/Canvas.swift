@@ -12,6 +12,7 @@ final class MonitorCanvas: NSView {
     var onLocalPan: ((NSEvent)->Void)?
     var onEdge: ((NSPoint)->Void)?
     var viewOnly = false
+    var paused = false { didSet { needsDisplay = true } }
     var remoteCursor: NSPoint? { didSet { needsDisplay = true } }
     private var surface: CGContext?
     private var tracking: NSTrackingArea?
@@ -72,6 +73,11 @@ final class MonitorCanvas: NSView {
             let cursorImage = NSCursor.arrow.image
             cursorImage.draw(in:CGRect(x:cursor.x*bounds.width,y:cursor.y*bounds.height,width:cursorImage.size.width,height:cursorImage.size.height),from:.zero,operation:.sourceOver,fraction:1,respectFlipped:true,hints:nil)
         }
+        if paused {
+            NSColor.gray.withAlphaComponent(0.55).setFill(); bounds.fill()
+            let side = min(96,min(bounds.width,bounds.height)*0.25)
+            NSImage(systemSymbolName:"pause.fill",accessibilityDescription:"Paused")?.draw(in:CGRect(x:bounds.midX-side/2,y:bounds.midY-side/2,width:side,height:side))
+        }
         if window?.firstResponder === self { NSColor.controlAccentColor.withAlphaComponent(0.6).setStroke(); NSBezierPath(rect:bounds.insetBy(dx:1,dy:1)).stroke() }
     }
     override func updateTrackingAreas() {
@@ -84,7 +90,11 @@ final class MonitorCanvas: NSView {
         if action == "move" { onEdge?(event.locationInWindow) }
         guard !viewOnly else { return }
         if action == "move" { let now = ProcessInfo.processInfo.systemUptime; if now-lastMoveTime < 1.0/90 { return }; lastMoveTime = now }
-        onPointer?(monitorID,clamp(point.x/max(1,bounds.width),0,1),clamp(point.y/max(1,bounds.height),0,1),action,button,0,0)
+        // A drag stays delivered to its original NSView; route it to the display now under the pointer.
+        let desktopPoint = superview?.convert(event.locationInWindow,from:nil) ?? point
+        let target = superview?.subviews.compactMap { $0 as? MonitorCanvas }.first { $0.frame.contains(desktopPoint) } ?? self
+        let targetPoint = target.convert(event.locationInWindow,from:nil)
+        onPointer?(target.monitorID,clamp(targetPoint.x/max(1,target.bounds.width),0,1),clamp(targetPoint.y/max(1,target.bounds.height),0,1),action,button,0,0)
     }
     override func mouseMoved(with event:NSEvent) { pointer(event,"move") }
     override func mouseDown(with event:NSEvent) { window?.makeFirstResponder(self); pointer(event,"down",1) }

@@ -1,0 +1,630 @@
+{
+  "schemaVersion": 1,
+  "prepared": "2026-09-10",
+  "scope": "Portlight iPhone viewer; existing Portlight protocol; no URC protocol or ZeroTier integration",
+  "statusValues": [
+    "not_started",
+    "in_progress",
+    "passed",
+    "blocked",
+    "failed"
+  ],
+  "instructions": "Record command, artifact, device/runtime and date in evidence. A physical-device item cannot pass from simulator evidence alone. Preserve requirements; document an approved scope change instead of silently deleting one.",
+  "requirements": [
+    {
+      "id": "BASE-01",
+      "phase": 0,
+      "requirement": "Source snapshot and destination differences recorded; no unrelated changes overwritten",
+      "expectedEvidence": "source manifest, git status, progress note",
+      "environment": "automated",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-10",
+          "environment": "MacBook (macOS 15.7.3, Command Line Tools, Swift 6.2.3)",
+          "command": "shasum -a 256 over source-context/portlight/* vs checkout; python manifest self-check",
+          "result": "28/28 snapshot files identical to checkout; SOURCE-MANIFEST 58/58 hashes match; git HEAD bfa6c2c51a8e440b81268d892841d3fee7af4e32 with 29 modified + 11 untracked pre-existing changes left untouched; all new code confined to viewer-ios/ (new, untracked)",
+          "artifact": "viewer-ios/DECISIONS.md (environment section), viewer-ios/PROGRESS.md"
+        }
+      ]
+    },
+    {
+      "id": "BASE-02",
+      "phase": 0,
+      "requirement": "iPhone simulator app builds and launches; test harness fails on zero executed tests",
+      "expectedEvidence": "build log and xcresult",
+      "environment": "simulator",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-10",
+          "environment": "RG Mac Studio, Xcode 26.6 (17F113), iPhone 17 Pro simulator iOS 26.5",
+          "command": "scripts/studio scripts/build-simulator",
+          "result": "BUILD SUCCEEDED, 0 unique warnings",
+          "artifact": "viewer-ios/evidence/build-simulator.log"
+        },
+        {
+          "date": "2026-09-10",
+          "environment": "RG Mac Studio simulator iOS 26.5",
+          "command": "scripts/studio scripts/test-unit",
+          "result": "SwiftPM 1/1 (macOS 26.3); Xcode kit-ios total=1 passed=1; app-unit total=1 passed=1",
+          "artifact": "viewer-ios/evidence/xcode-kit-ios-*.xcresult, xcode-app-unit-*.xcresult"
+        },
+        {
+          "date": "2026-09-10",
+          "environment": "MacBook CLT",
+          "command": "scripts/test-unit ZZZNoSuchTest",
+          "result": "exit 1: 'swift test (unit) executed zero tests' (zero-test guard proven)",
+          "artifact": "viewer-ios/evidence/swiftpm-unit-Mac.log"
+        },
+        {
+          "date": "2026-09-10",
+          "environment": "RG Mac Studio, Xcode 26.6, iPhone 17 Pro simulator iOS 26.5",
+          "command": "scripts/studio bash -c 'scripts/test-ui && scripts/capture-ui shell'",
+          "result": "UI LaunchTests total=1 passed=1 (app launches, Connections shell visible); screenshots captured in light and dark appearance",
+          "artifact": "viewer-ios/evidence/xcode-ui-20260910-220037.xcresult, evidence/attachments/xcode-ui-20260910-220037/*.png, evidence/screenshots/shell-light.png, shell-dark.png"
+        }
+      ]
+    },
+    {
+      "id": "NET-01",
+      "phase": 1,
+      "requirement": "First-use trust approval and rejection; exact saved pin; changed pin stops reconnect",
+      "expectedEvidence": "TLS fixture tests",
+      "environment": "automated",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT Swift 6.2.3 + RG Mac Studio Xcode 26.6 / iPhone 17 Pro sim iOS 26.5",
+          "command": "scripts/test-integration; scripts/test-unit (Session/Transport suites)",
+          "result": "Real TLS fixture + mock host (16 integration tests): first use → .trustRequired with exactly the fingerprint the fixture printed, no application data sent (mock transcript empty); exact pin → identityVerified → opened; changed pin → trustRequired(previousFingerprint, isChange). Challenge handler unit tests with a real SecTrust: .useCredential only on exact pin, answered exactly once. Controller: approve pins + reconnects with pin on a new generation; decline → trustDeclined; stale prompt ignored; certificate change stops automatic reconnect and shows trust.",
+          "artifact": "evidence/swiftpm-integration-RG-Book-16.log"
+        }
+      ]
+    },
+    {
+      "id": "NET-02",
+      "phase": 1,
+      "requirement": "Cancel or new connection invalidates old trust decisions, frames, timers, audio and callbacks",
+      "expectedEvidence": "generation/cancellation tests",
+      "environment": "automated",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3",
+          "command": "scripts/test-unit (Engine suites)",
+          "result": "engine generation-isolation tests pass with fakes (stale events, decode completions, timers, trust prompts ignored after reconnect); real-transport tests pending"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT Swift 6.2.3 + RG Mac Studio Xcode 26.6 / iPhone 17 Pro sim iOS 26.5",
+          "command": "scripts/test-unit",
+          "result": "EngineRetirementTests (7, fail on original sources): callbacks queued before disconnect/reconnect never delivered; no commit or revision reaches the framebuffer once disconnect returns; superseded connect never opens a socket. Transport generation isolation tests; controller ignores stale engine epochs.",
+          "artifact": "evidence/swiftpm-unit-RG-Book-16.log"
+        }
+      ]
+    },
+    {
+      "id": "NET-03",
+      "phase": 1,
+      "requirement": "No password is sent before certificate approval or read when merely selecting a saved connection",
+      "expectedEvidence": "transport spy and Keychain adapter tests",
+      "environment": "automated",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3",
+          "command": "scripts/test-unit (Engine + Persistence)",
+          "result": "password sent only in the single hello after .opened; spy secret store shows zero reads on selection/editing; hosted Keychain tests pending (5 real-Keychain tests skip in the unhosted package run)"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT Swift 6.2.3 + RG Mac Studio Xcode 26.6 / iPhone 17 Pro sim iOS 26.5",
+          "command": "scripts/studio scripts/test-unit (app-unit 16/16)",
+          "result": "Engine never sends hello without a verified pin (openingWithoutAPin / mismatched identity tests). SpySecretStore: exactly one Keychain read, inside connect; none on selection/editing; typed password never reads Keychain. Saved password bound to its canonical endpoint (edited address never receives it). Hosted KeychainHostedTests 10/10 inside Portlight.app on iOS 26.5 simulator; KeychainQueryTests assert exact query attributes.",
+          "artifact": "evidence/xcode-app-unit-20260911-024351.xcresult"
+        }
+      ]
+    },
+    {
+      "id": "NET-04",
+      "phase": 1,
+      "requirement": "Timeout, no route, refused port, wrong password and busy host have correct distinct outcomes",
+      "expectedEvidence": "failure fixtures and UI captures",
+      "environment": "simulator",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "RG Mac Studio, Xcode 26.6, iPhone 17 Pro simulator iOS 26.5; isolated fixture host on a free loopback port; MacBook CLT for the classifier tests",
+          "command": "scripts/studio scripts/test-e2e (UITests/FixtureSessionTests testB–testF); scripts/test-unit (TransportClassificationTests)",
+          "result": "Five distinct outcomes, each with a UI capture and a control transcript. Wrong password: 'Password Not Accepted' after trust, no Try Again (← error {code:authentication}). Refused loopback port: 'Portlight Host Isn’t Listening', no trust sheet, Try Again offered. Busy host (the test holds the fixture's single viewer slot with its own pinned, authenticated viewer): 'Another Viewer Is Connected' after trust (← error {code:busy}); once that viewer left, Try Again connected with the pin kept. Silent host (a loopback listener that accepts TCP and never answers TLS): 'The Computer Didn’t Answer' at the 10 s connect deadline, no hello sent (· failed timedOut). No route ([100::1], the IPv6 discard prefix; the kernel says EHOSTUNREACH on this Mac): 'Can’t Reach the Computer', no hello sent (· closed noRoute). Probing no-route first showed it misreported as 'No Network Connection', because URLSession returns a bare -1009. It was fixed by classifying with the device's own network status (DeviceNetworkMonitor); 3 new classifier tests, 695/695 on macOS. All 6 FixtureSessionTests passed; the test-e2e transcript checks passed; no password in the 9 evidence files checked.",
+          "artifact": "evidence/e2e/screenshots/fixture-wrong-password.png, fixture-refused.png, fixture-busy.png, fixture-busy-then-connected.png, fixture-silent-host.png, fixture-no-route.png; evidence/e2e/portlight-transcript-{wrong-password,refused,busy,silent,no-route}.log; xcode-ui-20260911-045656.xcresult"
+        }
+      ]
+    },
+    {
+      "id": "WIRE-01",
+      "phase": 1,
+      "requirement": "JSON/binary limits, overflow, malformed images, unknown codecs and invalid numbers fail safely",
+      "expectedEvidence": "parser/decoder tests",
+      "environment": "automated",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3",
+          "command": "scripts/test-unit (Protocol suites)",
+          "result": "83 Protocol tests: truncated/oversized/non-object JSON, invalid UTF-8, nesting bomb, header length 0/65537/overflow, binary <5 B and >32 MiB, true-as-Int, 1.5-as-Int, \"3\"-as-Int, negative sequence, Int.max rect, canvas 0/7681, off-by-one rect, unknown codec, PNG/JPEG signature mismatch, duplicate IDs, >64 displays, AAC/μ-law header rules; exact outbound JSON; all pass. Combined package 458/458 macOS; 463 (458 pass, 5 Keychain skipped) on iOS 26.5 simulator",
+          "artifact": "evidence/swiftpm-unit-RG-Book-16.log, evidence/xcode-kit-ios-20260911-010405.xcresult"
+        }
+      ]
+    },
+    {
+      "id": "DISP-01",
+      "phase": 1,
+      "requirement": "Fresh connection selects all three fixture monitors at revision 1 and fits the collection",
+      "expectedEvidence": "real Portlight fixture transcript and screenshot",
+      "environment": "simulator",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3",
+          "command": "scripts/test-unit (Engine)",
+          "result": "engine sends revision 1 with all three displays in the same turn as welcome (unit); real fixture + simulator screenshot pending"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "RG Mac Studio, Xcode 26.6, iOS 26.5 simulator (iPhone Air and iPhone 17 Pro), isolated --fixture host on 127.0.0.1",
+          "command": "scripts/studio scripts/test-e2e",
+          "result": "Composed app, real fixture over TLS: transcript's first subscribe is revision 1 with displays [fixture-1, fixture-2, fixture-3] at HD, regions {} (full), after trust approval and hello; subscribed returns three 1280×720 canvases; frames decode and are ACKed (agent run: 6,976 received / 6,973 ACKed, 0 rejected; re-run from the main tree: 2,199 frames / 2,198 ACKs, E2E transcript checks passed). fixture-connected.png (re-run) shows real decoded fixture pixels of all three displays fitted side by side, status 'Connected · HD', Displays badge 3 — inspected by eye. FixtureSessionTests 3/3 passed on iPhone Air; on iPhone 17 Pro test A later timed out after the connected capture (UI-test robustness issue under investigation, not a connection failure).",
+          "artifact": "evidence/e2e/portlight-transcript.log, evidence/e2e/screenshots/fixture-connected.png, fixture-connected-landscape.png, fixture-diagnostics.png"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "RG Mac Studio, Xcode 26.6, iPhone 17 Pro simulator iOS 26.5 (rebooted), isolated --fixture host on 127.0.0.1:58217",
+          "command": "scripts/studio bash -c 'scripts/test-ui && scripts/test-e2e'",
+          "result": "Second simulator model: FixtureSessionTests 3/3 passed; transcript: 7 subscribes / 7 subscribed, two fresh connects each sending revision 1 with all three displays, 6,898 frames received and 6,897 ACKed (one in flight at disconnect), 0 input messages; E2E transcript checks passed. UI suite 11 passed, 3 skipped (E2E-only), 0 failed.",
+          "artifact": "evidence/e2e/portlight-transcript.log; evidence/xcode-ui-20260911-043217.xcresult (copied back)"
+        }
+      ]
+    },
+    {
+      "id": "RENDER-01",
+      "phase": 1,
+      "requirement": "PNG4, indexed PNG8 and JPEG decode to correct pixels; overlapping partial updates preserve untouched areas",
+      "expectedEvidence": "golden pixel comparisons",
+      "environment": "automated",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3; RG Mac Studio, Xcode 26.6, iPhone 17 Pro simulator iOS 26.5",
+          "command": "scripts/test-unit (Rendering suites)",
+          "result": "ImageTileDecoder golden tests: 4-bit gray PNG (n×17 exact), 8-bit indexed PNG (host palette exact), RGB PNG exact, JPEG within tolerance; overlapping partial updates preserve untouched pixels identically in SoftwareFramebuffer and MetalFramebufferStore readback; size/codec mismatch rejected before allocation. Adversarial review in progress.",
+          "artifact": "evidence/xcode-kit-ios-20260911-010405.xcresult"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT Swift 6.2.3 + RG Mac Studio Xcode 26.6 / iPhone 17 Pro sim iOS 26.5",
+          "command": "scripts/test-unit",
+          "result": "Adversarial review added packedSubByteSamplesExpandExactly (1/2/4-bit gray + indexed at odd width; fails under a ×16 mutation) because macOS ImageIO widens 4-bit PNGs; lost patches now return .failed and invalidate coverage.",
+          "artifact": "evidence/swiftpm-unit-RG-Book-16.log"
+        }
+      ]
+    },
+    {
+      "id": "RENDER-02",
+      "phase": 1,
+      "requirement": "Applied patches remain complete when presentations coalesce; ACKs release old revision capacity",
+      "expectedEvidence": "bounded-queue and stale-revision fixture",
+      "environment": "automated",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3",
+          "command": "scripts/test-unit (Engine)",
+          "result": "ACK exactly once per frame, stale never decoded, commit before ACK, backlog bound (fakes); real framebuffer integration under review"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT Swift 6.2.3 (engine + rendering review workspaces over the full package)",
+          "command": "scripts/test-unit (Engine + Rendering suites)",
+          "result": "Engine: tile flood across an HD→FHD revision with a revision-1 decode parked while revision 2 was accepted leaves SoftwareFramebuffer byte-identical to a golden model; committed/stale sequences exact; every image ACKed exactly once and only after commit; audio never ACKed; 0 rejections, 0 recoveries. Rendering: coalescedPresentationShowsEveryAppliedPatch (5 host tiles between two ticks → 1 presentation + 1 skip, drawn texels equal the golden model); stagingFloodStaysBoundedAndLosesNoPatch (160 overlapping patches through a 512 KiB staging budget, all committed, peak within budget); stale commits leave pixels untouched and free host capacity.",
+          "artifact": "evidence/swiftpm-unit-RG-Book-16.log"
+        }
+      ]
+    },
+    {
+      "id": "RENDER-03",
+      "phase": 1,
+      "requirement": "Frame arrivals never change viewport transforms; scripted trace is identical with and without tile flood",
+      "expectedEvidence": "no-jump test with positive applied/presented counts",
+      "environment": "automated",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3",
+          "command": "scripts/test-unit (Viewport)",
+          "result": "240-step trajectory bit-identical on replay; frames have no path to the viewport by construction; flood-under-trace test through the session pending"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT Swift 6.2.3 + RG Mac Studio Xcode 26.6 / iPhone 17 Pro sim iOS 26.5",
+          "command": "scripts/test-unit",
+          "result": "SessionNoJumpTests: 240-step gesture trace through SessionController while real PNG tiles are decoded (ImageIO) into SoftwareFramebuffer — published and render-thread transforms bit-identical (Double.bitPattern) to the no-frame trace; committed > 0, framesRejected = 0, presented > 0. Viewport 240-step trajectory bit-identical on replay.",
+          "artifact": "evidence/swiftpm-unit-RG-Book-16.log"
+        }
+      ]
+    },
+    {
+      "id": "INPUT-01",
+      "phase": 2,
+      "requirement": "Direct, Trackpad and local Pan modes follow gesture arbitration and have visible state",
+      "expectedEvidence": "gesture tests and device recording",
+      "environment": "physical-device",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3",
+          "command": "scripts/test-unit (Input)",
+          "result": "gesture conformance table for Trackpad/Direct/Pan passes (68 tests); physical device recording pending"
+        }
+      ]
+    },
+    {
+      "id": "INPUT-02",
+      "phase": 2,
+      "requirement": "Left/right/middle click, drag and modifier combinations reach the intended Mac display",
+      "expectedEvidence": "controlled test-app input log and optical check",
+      "environment": "physical-device",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT: scripts/test-integration, 22/22 (real pinned WebSocket to scripts/mock-host.py on a free loopback port); SwiftPM unit tests",
+          "command": "scripts/test-integration (TransportIntegrationTests.ledgerInputIsAcceptedByTheMock); scripts/test-unit (InputLedgerTests, KeyboardInputTests)",
+          "result": "Message-level part passes. Moves, left and right press/release and scrolls built by the viewer's own InputLedger are addressed to the intended display by id and accepted by the mock host exactly as sent, with no refusals or type coercions. Modifier latching and release order are unit-tested (the 'Input ledger' and 'Modifier latches' suites). Pending on a physical iPhone with a consented test Mac: the test-app input log and an optical check that clicks, drags and modifier combinations land on the intended Mac display.",
+          "artifact": "evidence/swiftpm-integration-Mac.log"
+        }
+      ]
+    },
+    {
+      "id": "INPUT-03",
+      "phase": 2,
+      "requirement": "Buttons, locked/latched modifiers and keys release on pause, control-off, mode switch, background and disconnect",
+      "expectedEvidence": "input ledger tests and physical mid-drag interruption",
+      "environment": "physical-device",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT, SwiftPM (724 tests)",
+          "command": "scripts/test-unit (SessionInputTests.heldInputIsReleasedOnTheWire ×3, aModeSwitchReleasesInputAndClearsLatches; SessionLifecycleTests; SessionReviewRegressionTests; InputLedgerTests)",
+          "result": "Automated part passes. With Hold Left, a locked ⌥ and a hardware 'a' all held, Pause, View Only and Disconnect each put every release on the wire (button up, 'a' up, ⌥ up) before the subscription that carries the change, and press nothing again. The Hold Left latch no longer shows as held (heldInputIsReleasedOnTheWire, 3 cases). A mode switch releases buttons and modifiers and clears the latches (SessionInputTests.swift:91). Backgrounding and becoming inactive release held input (SessionLifecycleTests :15, :66). The Session review fixed three stuck-input defects its probes found. Input pressed after a subscribe lost its release when the host acknowledged. A canvas-budget refusal left a phantom press. A Locked modifier was lost after a region refinement. Each now has a regression test that fails on the old code (SessionReviewRegressionTests, SessionInputTests.inputPressedAfterASubscribeStaysHeldUntilReleased). Release order (buttons, then keys, then modifiers) is covered by the 'Input ledger' suite, 15 tests. Pending on a physical iPhone: interrupting a real drag in TextEdit with Pause, View Only, a mode switch, Home, Disconnect and Control Center, then confirming on the Mac that nothing stays stuck.",
+          "artifact": "evidence/swiftpm-unit-Mac.log"
+        }
+      ]
+    },
+    {
+      "id": "INPUT-04",
+      "phase": 2,
+      "requirement": "Unicode composition commits exactly once; special keys and hardware keyboard use keysyms",
+      "expectedEvidence": "text/key event tests plus real keyboard check",
+      "environment": "physical-device",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3",
+          "command": "scripts/test-unit (Input)",
+          "result": "HID→keysym table, printable keysyms, grapheme-safe ≤4096-byte chunks, newline/tab mapping pass; real keyboard check pending"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT: scripts/test-integration, 22/22 (real pinned WebSocket to scripts/mock-host.py on a free loopback port)",
+          "command": "scripts/test-integration (TransportIntegrationTests.ledgerInputIsAcceptedByTheMock)",
+          "result": "Message level, added evidence: Return as an X11 keysym press and release, and 'héllo wörld 👋🏽 👨‍👩‍👧' as grapheme-safe text chunks from the viewer's InputLedger, are accepted by the mock host exactly as sent. The real keyboard check on a device is still pending.",
+          "artifact": "evidence/swiftpm-integration-Mac.log"
+        }
+      ]
+    },
+    {
+      "id": "DISP-02",
+      "phase": 2,
+      "requirement": "Mixed-DPI, negative origins, portrait and 1+3 compact selection map correctly",
+      "expectedEvidence": "geometry fixtures and physical mixed-display check",
+      "environment": "physical-device",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3",
+          "command": "scripts/test-unit (Viewport)",
+          "result": "geometry fixtures: equal logical size mixed-DPI, negative origins, portrait, 1+3 compaction, cross-boundary hit testing — pass; physical mixed-display check pending"
+        }
+      ]
+    },
+    {
+      "id": "VIEW-01",
+      "phase": 2,
+      "requirement": "Fit follows rotation and available space; other zoom preserves anchor across resolution and keyboard changes",
+      "expectedEvidence": "geometry tests and orientation UI tests",
+      "environment": "simulator",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3",
+          "command": "scripts/test-unit (Viewport)",
+          "result": "Fit persistence and non-Fit anchor across rotation/keyboard geometry tests pass; orientation UI tests pending"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "RG Mac Studio, Xcode 26.6, iPhone 17 Pro + iPhone Air simulators iOS 26.5; MacBook CLT for geometry tests",
+          "command": "scripts/studio scripts/test-e2e (FixtureSessionTests.testA rotation step); scripts/studio scripts/test-ui (GalleryScreenshotTests.testLandscapeSessionChrome); scripts/test-unit (Viewport + Session geometry suites)",
+          "result": "Orientation UI: the live fixture session rotated portrait → landscape → portrait; the landscape capture shows all three real displays refitted across the full width between the landscape control rails (inspected), and the gallery landscape chrome test passes. Geometry tests: Fit persists and refits on rotation, safe-area, hidden-controls and keyboard changes; non-Fit zoom keeps the desktop point at the usable centre across rotation and keyboard changes at the same absolute scale (re-clamped), and across pixel-density changes in UI points; resolution-only revisions never move the viewport (no API path); the zoom ceiling never drops when the keyboard appears.",
+          "artifact": "evidence/e2e/screenshots/fixture-connected.png, fixture-connected-landscape.png; evidence/ui-gallery/*-landscape-*.png"
+        }
+      ]
+    },
+    {
+      "id": "VIEW-02",
+      "phase": 2,
+      "requirement": "Control On/View Only is unmistakable; Pause dims retained picture and blocks remote input",
+      "expectedEvidence": "screenshots and outbound-event assertions",
+      "environment": "simulator",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT Swift 6.2.3 + RG Mac Studio Xcode 26.6 / iPhone 17 Pro sim iOS 26.5",
+          "command": "scripts/studio scripts/test-ui; scripts/test-unit",
+          "result": "UI: Control On (cursor icon + 'Control On' label, filled accent, selected trait) vs View Only (eye icon, outlined, no selected trait); Pause overlay over the renderer-dimmed picture; hidden-controls grabber — GalleryScreenshotTests on simulator (light/dark/landscape screenshots). Wire: with View Only and while paused, taps, scrolls, drags, clicks, latches, keys, text and paste produce zero input messages; Pause sends paused:true,audio:false and Resume restores audio (SessionInputTests). Composed-app captures follow in the fixture E2E.",
+          "artifact": "evidence/ui-gallery/light-session-control.png, light-session-view-only.png, light-session-paused.png"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "RG Mac Studio, Xcode 26.6, iPhone 17 Pro simulator iOS 26.5 (rebooted), isolated --fixture host on 127.0.0.1:58217",
+          "command": "scripts/studio scripts/test-e2e",
+          "result": "Composed app on iPhone 17 Pro: Pause sends paused:true audio:false (1 subscribe), View Only sends viewOnly:true (1 subscribe), zero pointer/wheel/key/text messages in the transcript.",
+          "artifact": "evidence/e2e/screenshots/fixture-paused.png, fixture-view-only.png"
+        }
+      ]
+    },
+    {
+      "id": "QUALITY-01",
+      "phase": 3,
+      "requirement": "Four resolution and three color buttons show selection; unsupported values disabled; no user FPS picker",
+      "expectedEvidence": "UI tests and subscription assertions",
+      "environment": "simulator",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "RG Mac Studio, Xcode 26.6, iOS 26.5 simulator (iPhone Air and iPhone 17 Pro), isolated --fixture host on 127.0.0.1",
+          "command": "scripts/studio scripts/test-e2e; scripts/studio scripts/test-ui",
+          "result": "Composed app: HD/FHD/QHD/UHD and three color buttons present with selected state, unavailable UHD disabled with its reason ('UHD for 3 displays needs more memory than this iPhone allows.'), no FPS control anywhere (asserted). Tapping 256 Colors sends revision 3 with color:color256 and the picture visibly changes palette; the choice persists (the next connection's revision 1 requests color256). Gallery UI tests assert selection/availability states.",
+          "artifact": "evidence/e2e/screenshots/fixture-quality.png, fixture-256-colors.png"
+        }
+      ]
+    },
+    {
+      "id": "QUALITY-02",
+      "phase": 3,
+      "requirement": "Video smoothing is optional/off by default and does not affect Text mode",
+      "expectedEvidence": "subscription/encoder fixture comparison",
+      "environment": "automated",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, isolated --fixture host on a random 127.0.0.1 port, pinned by fingerprint; PortlightKit unit tests",
+          "command": "eval \"$(scripts/fixture-host start)\"; ../.test-venv/bin/python scripts/quality02-check.py",
+          "result": "Host encoder comparison on the real fixture (color256): Text mode (quality desktop) produces an identical color set with dither on and off (3 = 3 distinct colors) — smoothing cannot affect Text mode; Video mode (motion) with dither on adds dithered colors (3 → 6) — the option is effective where documented. Viewer side: SessionSettings.effectiveDither sends dither only for Video + reduced color and defaults off; the Quality sheet enables Smooth Gradients only for Video with 256 Colors or 16 Shades of Gray (gallery UI test).",
+          "artifact": "evidence/quality02-check.json"
+        }
+      ]
+    },
+    {
+      "id": "REGION-01",
+      "phase": 3,
+      "requirement": "Offscreen selected displays have explicit zero regions; no unselected payload; no subscription during held drag/chord",
+      "expectedEvidence": "wire transcript and input-state tests",
+      "environment": "automated",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT Swift 6.2.3 + RG Mac Studio Xcode 26.6 / iPhone 17 Pro sim iOS 26.5",
+          "command": "scripts/test-unit; tests/run_e2e.py",
+          "result": "SessionRegionTests: refinement only after 150 ms settle, carrying explicit .zero regions for hidden selected displays; never while a button/finger is held (deferred until release); none while paused; selection change resets to full. Host-side: fixture sends no frames for zero-region/unselected displays (existing tests/protocol_e2e.py step 6, passing against the isolated fixture).",
+          "artifact": "evidence/swiftpm-unit-RG-Book-16.log"
+        }
+      ]
+    },
+    {
+      "id": "AUDIO-01",
+      "phase": 3,
+      "requirement": "AAC and mulaw bounds/formats decode; old audio epochs rejected; video-only revisions preserve playback",
+      "expectedEvidence": "audio fixture and epoch tests",
+      "environment": "automated",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3; RG Mac Studio, Xcode 26.6, iPhone 17 Pro simulator iOS 26.5",
+          "command": "scripts/test-unit (Audio suites)",
+          "result": "all 4 viewer-windows AAC fixture cases decode ≥8192 frames with zero failures; μ-law vectors; epoch gate rejects old-epoch packets (Off/On same codec, codec/bitrate change), keeps playback across video-only revisions; jitter buffer bounded under burst. Adversarial review pending.",
+          "artifact": "evidence/swiftpm-unit-RG-Book-16.log"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT: scripts/test-integration, 22/22 (real pinned WebSocket to scripts/mock-host.py on a free loopback port)",
+          "command": "scripts/test-integration (TransportIntegrationTests.aacAudioArrivesAndDecodes, muLawAudioArrivesAndDecodes)",
+          "result": "Message level, added evidence: AAC (48 kHz, 1,024-sample packets) and μ-law (24 kHz, 480-sample packets) from the mock host arrive in sequence order over a real pinned WebSocket, and every packet decodes through the viewer's own AudioPacketDecoder to exactly its declared frame count.",
+          "artifact": "evidence/swiftpm-integration-Mac.log"
+        }
+      ]
+    },
+    {
+      "id": "AUDIO-02",
+      "phase": 3,
+      "requirement": "Audio continues across quality/display changes; bounded queue under congestion; route/interruption recovery",
+      "expectedEvidence": "real phone playback and underrun/queue measurements",
+      "environment": "physical-device",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT (SwiftPM, 695 tests) and RG Mac Studio iOS 26.5 simulator (PortlightKit kit-ios, 676 passed + 6 unhosted Keychain skips)",
+          "command": "scripts/test-unit; scripts/studio scripts/test-unit",
+          "result": "Automated part passes. Continuity: 'video-only revisions keep audio playing without a restart' (AudioPipelineTests.swift:132) and the epoch gate (AudioEpochGateTests, 7 tests). Bounded queues: 'a 100-packet burst stays within 250 ms by dropping the oldest audio' (AudioPipelineTests.swift:210), 'a backlog on the audio queue is bounded and counted' (:300), and the jitter buffer staying bounded under a 100-packet burst (JitterBufferTests.swift:38). Routes and interruptions: AudioSessionPolicyTests (12 tests) cover interruption suspend/resume (:31, :47, :59), failed activation (:71), media-services reset (:81, :121), and a device removed during an interruption (:103). Output renders offline through AVAudioEngine (EngineAudioOutputTests, 3 tests); AAC and μ-law decoding are covered (9 tests). Pending on a physical iPhone: real playback with no gap over 150 ms across quality/display changes, headphone unplug/call/Siri/Bluetooth routes, and queue and underrun numbers on Wi-Fi and Hotspot (docs/DEVICE-TEST-SCRIPT.md). The fixture host has no audio, so no simulator playback evidence exists.",
+          "artifact": "evidence/swiftpm-unit-Mac.log; evidence/swiftpm-unit-RG-Mac-Studio.log; evidence/xcode-kit-ios.log"
+        }
+      ]
+    },
+    {
+      "id": "LIFE-01",
+      "phase": 4,
+      "requirement": "Background releases input and covers app-switcher image; foreground frozen frame reconnects without becoming controllable early",
+      "expectedEvidence": "real lifecycle test",
+      "environment": "physical-device",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "RG Mac Studio, Xcode 26.6, iPhone 17 Pro simulator iOS 26.5, isolated fixture host; SwiftPM unit tests on both Macs",
+          "command": "scripts/studio scripts/test-e2e (FixtureSessionTests.testG_BackgroundCoversTheSessionAndForegroundReconnects); scripts/test-unit (SessionLifecycleTests, AppCompositionTests)",
+          "result": "Simulator part passes. A live fixture session went to the background with Home: the app-switcher capture shows Portlight's privacy cover (icon and name on white), not the Mac's pixels. The transcript shows the session ended (· disconnect) between two welcomes, with no input sent. Returning reconnected on its own with the pin, without a second approval. Unit: SessionLifecycleTests ('LIFE-01 (automated)': input released, no retries while backgrounded, frozen frame dimmed, taps ignored while reconnecting, presses wait for fresh pixels; inactive releases held input), scene-phase mapping (AppCompositionTests), idle timer (SessionPartsTests). Pending on a physical iPhone: the hardware app-switcher snapshot, the host seeing the disconnect within seconds, and Auto-Lock.",
+          "artifact": "evidence/e2e/screenshots/fixture-app-switcher.png, fixture-foreground-reconnected.png; evidence/e2e/portlight-transcript-lifecycle.log; xcode-ui-20260911-052146.xcresult"
+        }
+      ]
+    },
+    {
+      "id": "SAVE-01",
+      "phase": 4,
+      "requirement": "Names/groups/save/update/reorder/delete persist; credentials remain only in Keychain; selection does not connect",
+      "expectedEvidence": "persistence tests and UI walkthrough",
+      "environment": "simulator",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook, Command Line Tools, Swift 6.2.3, macOS 15.7.3",
+          "command": "scripts/test-unit (Persistence)",
+          "result": "100 persistence tests pass; review found 4 major defects (password follows edited address, stale trust cache, skipped Keychain tests, stale Update snapshot) — fixes in progress"
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "MacBook CLT Swift 6.2.3 + RG Mac Studio Xcode 26.6 / iPhone 17 Pro sim iOS 26.5",
+          "command": "scripts/test-unit; app-unit",
+          "result": "All 4 major review defects fixed with regression tests (password bound to endpoint; no stale trust cache; hosted Keychain tests; Update merges into the current profile) + minors (markSaved, remember default, needsPassword reasons, newer-schema never replaced, lossy element decoding, orphan sweep). UI walkthrough with the composed app pending.",
+          "artifact": ""
+        },
+        {
+          "date": "2026-09-11",
+          "environment": "RG Mac Studio, Xcode 26.6, iOS 26.5 simulator (iPhone Air and iPhone 17 Pro), isolated --fixture host on 127.0.0.1",
+          "command": "scripts/studio scripts/test-e2e; scripts/studio scripts/test-unit (app-unit)",
+          "result": "UI walkthrough (E2E): New Connection → Save turns into Update Connection; the row persists across relaunch with the same data folder; tapping it only opens the form ('Saved in Keychain' placeholder) — no connect, no trust sheet; the saved Connections.json contains no password. Hosted unit tests: save once then update, delete removes the secret, list edits never revert session-saved preferences. Persistence suite (158) covers groups, reorder, moves, delete, recovery, newer-schema protection; hosted KeychainHostedTests 10/10.",
+          "artifact": "evidence/e2e/screenshots/fixture-saved-list.png, fixture-relaunch-list.png, fixture-relaunch-form.png"
+        }
+      ]
+    },
+    {
+      "id": "PASTE-01",
+      "phase": 4,
+      "requirement": "Explicit Type Pasted Text uses native paste intent and UTF-8-safe chunks; no clipboard polling",
+      "expectedEvidence": "paste tests and device prompt behavior",
+      "environment": "physical-device",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "SwiftPM on both Macs (720 tests); scripts/test-integration 22/22; source inspection",
+          "command": "scripts/test-unit (SessionReviewRegressionTests, SessionReviewAPITests, KeyboardInputTests 'Text input'); scripts/test-integration",
+          "result": "Automated part passes. The app pastes only through Apple's system paste control (UIPasteControl in App/Components/Input/PasteTextControl.swift) and receives text only at paste(itemProviders:). There is no UIPasteboard access anywhere in App/ or PortlightKit/Sources, so no polling. Type Pasted Text is bounded to 4,096 whole characters with a 'Text Shortened' alert, split into grapheme-safe chunks of at most 20 UTF-16 units and 4,096 bytes, and paced at 64 messages per 1/60 s without splitting a key press (SessionReviewRegressionTests.swift:205, :216, :230, :239, :257; the 'Text input' suite, 8 tests). The mock host accepts the viewer's own text chunks, emoji and ZWJ sequences included, exactly as sent (TransportIntegrationTests.ledgerInputIsAcceptedByTheMock). Pending on a physical iPhone: the system paste prompt, 300 characters with emoji arriving on a real Mac, and the Mac clipboard staying unchanged.",
+          "artifact": "evidence/swiftpm-unit-Mac.log; evidence/swiftpm-integration-Mac.log"
+        }
+      ]
+    },
+    {
+      "id": "UX-01",
+      "phase": 4,
+      "requirement": "Light/dark, large text, VoiceOver, reduced motion/transparency and 44-point controls are usable",
+      "expectedEvidence": "appearance captures and accessibility/device review",
+      "environment": "physical-device",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "RG Mac Studio, Xcode 26.6, iPhone 17 Pro simulator iOS 26.5",
+          "command": "scripts/studio scripts/test-ui (final full run: 12 passed, 7 fixture tests skipped); scripts/studio scripts/test-ui GalleryScreenshotTests (11/11, after the address-wrap fix)",
+          "result": "Simulator part passes. Xcode's accessibility audit runs on all 24 gallery pages: in light, contrast plus element detection, hit regions, element descriptions, Dynamic Type, clipped text and traits; in dark, contrast. The first run found 180 issues. After the fixes it reports none open, with 61 accepted under narrow, documented rules: 51 Dynamic Type (the two deliberately capped bars, the system sheet Done button, and a few List/Form cells the large-text screenshots show growing), 7 contrast (disabled controls, and one header under the system scroll-edge blur), and 3 clipped text (UIKit single-line fields). The fixes: opaque cards and banner; darker secondary text (about 7:1 in light, 8:1 in dark); label-colored secondary buttons; Dynamic Type caps confined to the chrome's strip, rails and grabber and to the keyboard bar; wrapping instead of truncation, with addresses breaking before the port; custom empty states. Light, dark, large-text (accessibility L), landscape and Reduce Transparency with Increase Contrast captures were reviewed. VoiceOver values and 44 pt targets are asserted in GalleryScreenshotTests. Pending on a physical iPhone: a VoiceOver walkthrough, the real system settings (largest Dynamic Type, Bold Text, Reduce Motion), thumb reach and Dynamic Island clearance.",
+          "artifact": "evidence/ui-gallery/ (63 screenshots, index.tsv); evidence/attachments/xcode-ui-20260911-071910/CA0FE135-FED6-4B8D-A7A2-37F8BB7D8084.txt (audit report); xcode-ui-20260911-065858.xcresult, xcode-ui-20260911-071910.xcresult"
+        }
+      ]
+    },
+    {
+      "id": "PRIV-01",
+      "phase": 4,
+      "requirement": "Local network request/denial/retry works; no viewer screen-recording or microphone prompt",
+      "expectedEvidence": "real iPhone permissions test",
+      "environment": "physical-device",
+      "status": "in_progress",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "Source and build-settings inspection; SwiftPM on both Macs; RG Mac Studio UI gallery (iPhone 17 Pro simulator iOS 26.5)",
+          "command": "scripts/test-unit (TransportClassificationTests, ReconnectPolicyTests); scripts/studio scripts/test-ui (gallery page failure-local-network)",
+          "result": "Automated part passes. Config/Info.plist declares only NSLocalNetworkUsageDescription: there are no microphone, camera or screen-recording keys and no entitlements file, and audio uses the playback-only session category. A Local Network denial is classified precisely: the explicit 'Local network prohibited' path reason, the local-address rule, and the device-network split that keeps an offline iPhone and a missing route apart (TransportClassificationTests). It is never retried automatically (ReconnectPolicyTests). The 'Allow Local Network Access' card, with Open Settings and Try Again, is captured in light and dark. Pending on a physical iPhone: the real prompt, Don't Allow → card → Settings → Try Again, and confirming no other permission prompt appears.",
+          "artifact": "Config/Info.plist; evidence/attachments/xcode-ui-20260911-050943 (light-/dark-failure-local-network)"
+        }
+      ]
+    },
+    {
+      "id": "PERF-01",
+      "phase": 4,
+      "requirement": "Named-phone local gesture timing, end-to-end input latency, bandwidth, audio and memory measured on named link profiles",
+      "expectedEvidence": "benchmark report with method and samples",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "SOAK-01",
+      "phase": 4,
+      "requirement": "30-minute phone session has bounded memory/queues and no stuck input across reconnects",
+      "expectedEvidence": "soak report and thermal/memory traces",
+      "environment": "physical-device",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "DELIVERY-01",
+      "phase": 4,
+      "requirement": "Reproducible source/build, evidence, device test guide and honest limits delivered; no automatic publication",
+      "expectedEvidence": "delivery manifest",
+      "environment": "manual",
+      "status": "passed",
+      "evidence": [
+        {
+          "date": "2026-09-11",
+          "environment": "manual; MacBook (CLT) and RG Mac Studio (Xcode 26.6)",
+          "command": "python3 scripts/delivery-manifest.py",
+          "result": "DELIVERY.md and DELIVERY-MANIFEST.json are delivered. The manifest records the Portlight checkout commit, a SHA-256 for 228 source files and 126 evidence files, 34 result bundles, the toolchains and the acceptance status. Its required-deliverables check passes. It covers the source (Xcode project and PortlightKit package), the simulator and device build scripts, the install and signing steps (docs/INSTALL.md), the physical-iPhone test script (docs/DEVICE-TEST-SCRIPT.md), the known limitations (docs/KNOWN-LIMITS.md), the decisions, progress and acceptance records, the unit and integration logs, the end-to-end run, simulator screenshots of the connection and session states, and the light and dark gallery. The final evidence run passed on both Macs (DELIVERY.md, 'Final evidence run'). Nothing was committed, pushed, published, uploaded, signed for distribution or submitted: viewer-ios/ and docs/host-next/ are untracked working-tree additions. The physical-device requirements stay open, and are documented as open.",
+          "artifact": "DELIVERY.md; DELIVERY-MANIFEST.json"
+        }
+      ]
+    }
+  ],
+  "workingCopyOf": "verification/Portlight-iPhone-Opus-Handoff-2026-09-10/ACCEPTANCE.json",
+  "workingCopyNote": "Handoff original stays pristine (manifest hashes). This copy is updated as evidence accrues."
+}

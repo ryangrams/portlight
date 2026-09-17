@@ -16,13 +16,16 @@ final class CaptureStream: NSObject, SCStreamOutput, SCStreamDelegate {
     private let queue = DispatchQueue(label: "com.studioupgrade.suremote.capture", qos: .userInteractive)
     var onImage: ((CGImage) -> Void)?
     var onAudio: ((Data) -> Void)?
-    var onError: ((String) -> Void)?
+    var onError: ((Error) -> Void)?
     private var active = true
     private let ci = CIContext(options: [.cacheIntermediates: false])
+    private let audioRate:Int
+    private let audioChannels:Int
     private var audioConverter: AVAudioConverter?
     private var audioSourceDescription: AudioStreamBasicDescription?
 
-    init(display: DisplayInfo, scDisplay: SCDisplay, size: (Int,Int), fps: Int, audio: Bool) throws {
+    init(display: DisplayInfo, scDisplay: SCDisplay, size: (Int,Int), fps: Int, audio: Bool, audioRate:Int = 24000, audioChannels:Int = 1) throws {
+        self.audioRate = audioRate; self.audioChannels = audioChannels
         self.display = display; self.width = size.0; self.height = size.1
         let filter = SCContentFilter(display: scDisplay, excludingWindows: [])
         let config = SCStreamConfiguration()
@@ -30,7 +33,7 @@ final class CaptureStream: NSObject, SCStreamOutput, SCStreamDelegate {
         config.minimumFrameInterval = CMTime(value: 1, timescale: Int32(fps))
         config.queueDepth = 3; config.pixelFormat = kCVPixelFormatType_32BGRA
         config.showsCursor = false; config.preservesAspectRatio = true
-        config.capturesAudio = audio; config.sampleRate = 24000; config.channelCount = 1
+        config.capturesAudio = audio; config.sampleRate = audioRate; config.channelCount = audioChannels
         config.excludesCurrentProcessAudio = true; config.captureMicrophone = false
         config.streamName = "Portlight — \(display.name)"
         super.init()
@@ -40,7 +43,7 @@ final class CaptureStream: NSObject, SCStreamOutput, SCStreamDelegate {
     }
     func start() async throws { try await stream.startCapture() }
     func stop() async { active = false; try? await stream.stopCapture() }
-    func stream(_ stream: SCStream, didStopWithError error: Error) { onError?(error.localizedDescription) }
+    func stream(_ stream: SCStream, didStopWithError error: Error) { if active { onError?(error) } }
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard active, sampleBuffer.isValid else { return }
         if type == .screen {
@@ -55,7 +58,7 @@ final class CaptureStream: NSObject, SCStreamOutput, SCStreamDelegate {
         guard let formatDescription = sample.formatDescription,
               let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription),
               let sourceFormat = AVAudioFormat(streamDescription: asbd),
-              let destination = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 24000, channels: 1, interleaved: true) else { return }
+              let destination = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: Double(audioRate), channels: AVAudioChannelCount(audioChannels), interleaved: true) else { return }
         let frames = AVAudioFrameCount(sample.numSamples)
         guard let input = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: frames) else { return }
         input.frameLength = frames
@@ -63,7 +66,7 @@ final class CaptureStream: NSObject, SCStreamOutput, SCStreamDelegate {
         guard result == noErr else { return }
         if audioConverter == nil || audioConverter?.inputFormat != sourceFormat { audioConverter = AVAudioConverter(from: sourceFormat, to: destination) }
         guard let converter = audioConverter,
-              let output = AVAudioPCMBuffer(pcmFormat: destination, frameCapacity: AVAudioFrameCount(Double(frames) * 24000 / sourceFormat.sampleRate + 32)) else { return }
+              let output = AVAudioPCMBuffer(pcmFormat: destination, frameCapacity: AVAudioFrameCount(Double(frames) * Double(audioRate) / sourceFormat.sampleRate + 32)) else { return }
         var supplied = false
         var error: NSError?
         let status = converter.convert(to: output, error: &error) { _, outStatus in
@@ -71,7 +74,7 @@ final class CaptureStream: NSObject, SCStreamOutput, SCStreamDelegate {
             supplied = true; outStatus.pointee = .haveData; return input
         }
         guard status != .error, output.frameLength > 0, let bytes = output.int16ChannelData?[0] else { return }
-        onAudio?(Data(bytes: bytes, count: Int(output.frameLength)*2))
+        onAudio?(Data(bytes: bytes, count: Int(output.frameLength)*2*audioChannels))
     }
 }
 
@@ -97,7 +100,38 @@ final class TileEncoder {
     private var needsLosslessRefresh = false
     private var lastChange = Date.distantPast
     func reset() { lastPixels = nil; lastWidth = 0; lastHeight = 0; needsLosslessRefresh=false }
-    func encode(_ image: CGImage, region: CGRect, color: String, quality: Double, motion: Bool, auto: Bool = false) -> [EncodedTile] {
+    // Fixed ordered thresholds: no temporal noise, neighbor propagation, or frame buffering.
+    private static let thresholds = [0,48,12,60,3,51,15,63,32,16,44,28,35,19,47,31,8,56,4,52,11,59,7,55,40,24,36,20,43,27,39,23,2,50,14,62,1,49,13,61,34,18,46,30,33,17,45,29,10,58,6,54,9,57,5,53,42,26,38,22,41,25,37,21]
+    private static func palette(_ levels:Int) -> [UInt8] {
+        var result = [UInt8](); result.reserveCapacity(16384)
+        for phase in 0..<64 { for value in 0..<256 {
+            let numerator:Int = value * levels * 64 + (32 + (thresholds[phase]-32)/4) * 255
+            result.append(UInt8(min(levels,max(0,numerator / 16320))))
+        } }
+        return result
+    }
+    private static let grayDither = palette(15)
+    private static let redGreenDither = palette(7).map { UInt8(Int($0)*255/7) }
+    private static let blueDither = palette(3).map { UInt8(Int($0)*255/3) }
+    private static func quantizeRGB(_ p:UnsafeMutableBufferPointer<UInt8>,width:Int,height:Int,color:String,motion:Bool) {
+        for y in 0..<height { for x in 0..<width {
+            let i = (y*width+x)*4
+            let r = Int(p[i]), g = Int(p[i+1]), b = Int(p[i+2])
+            if color == "color256" {
+                if motion {
+                    let phase:Int = (y & 7)*8 + (x & 7)
+                    let offset = phase*256
+                    p[i] = redGreenDither[offset+r]; p[i+1] = redGreenDither[offset+g]; p[i+2] = blueDither[offset+b]
+                } else {
+                    let rr:Int = r >> 5, gg:Int = g >> 5, bb:Int = b >> 6
+                    p[i] = UInt8(rr*255/7); p[i+1] = UInt8(gg*255/7); p[i+2] = UInt8(bb*255/3)
+                }
+            } else if color == "rgb565" {
+                p[i] = UInt8((r >> 3)*255/31); p[i+1] = UInt8((g >> 2)*255/63); p[i+2] = UInt8((b >> 3)*255/31)
+            }
+        } }
+    }
+    func encode(_ image: CGImage, region: CGRect, color: String, quality: Double, motion: Bool, auto: Bool = false, dither: Bool = false) -> [EncodedTile] {
         let started=DispatchTime.now().uptimeNanoseconds
         var stage=started
         metrics=EncodingMetrics()
@@ -106,7 +140,8 @@ final class TileEncoder {
         guard w > 0, h > 0, w <= 7680, h <= 7680 else { return [] }
         let rasterRowBytes = w * 4
         let gray16 = color == "gray16"
-        let bytesPerRow = gray16 ? (w+1)/2 : rasterRowBytes
+        let indexed = color == "color256"
+        let bytesPerRow = gray16 ? (w+1)/2 : (indexed ? w : rasterRowBytes)
         var pixels = Data(count: h * rasterRowBytes)
         let drawn = pixels.withUnsafeMutableBytes { (bytes: UnsafeMutableRawBufferPointer) -> Bool in
             guard let ctx = CGContext(data: bytes.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: rasterRowBytes,
@@ -115,17 +150,7 @@ final class TileEncoder {
             let afterRaster=DispatchTime.now().uptimeNanoseconds
             metrics.rasterMilliseconds=Double(afterRaster-stage)/1_000_000
             stage=afterRaster
-            let p = bytes.bindMemory(to: UInt8.self)
-            if color != "full" && !gray16 {
-                for i in stride(from: 0, to: bytes.count, by: 4) {
-                    let r = Int(p[i]), g = Int(p[i+1]), b = Int(p[i+2])
-                    if color == "color256" {
-                        p[i] = UInt8((r >> 5) * 255 / 7); p[i+1] = UInt8((g >> 5)*255/7); p[i+2] = UInt8((b >> 6)*255/3)
-                    } else if color == "rgb565" {
-                        p[i] = UInt8((r >> 3)*255/31); p[i+1] = UInt8((g >> 2)*255/63); p[i+2] = UInt8((b >> 3)*255/31)
-                    }
-                }
-            }
+            if color != "full" && !gray16 { Self.quantizeRGB(bytes.bindMemory(to:UInt8.self),width:w,height:h,color:color,motion:motion && dither) }
             return true
         }
         guard drawn else { return [] }
@@ -145,11 +170,23 @@ final class TileEncoder {
                 let input=source.bindMemory(to:UInt8.self),output=destination.bindMemory(to:UInt8.self)
                 for y in 0..<h {
                     let src=y*w,dst=y*bytesPerRow
-                    for x in stride(from:0,to:w-1,by:2) { output[dst+x/2]=(input[src+x]/17)<<4 | input[src+x+1]/17 }
-                    if w%2 != 0 { output[dst+w/2]=(input[src+w-1]/17)<<4 }
+                    for x in stride(from:0,to:w,by:2) {
+                        let first = (motion && dither) ? Self.grayDither[(((y&7)*8+(x&7))*256)+Int(input[src+x])] : input[src+x]/17
+                        var second:UInt8 = 0
+                        if x+1 < w { second = (motion && dither) ? Self.grayDither[(((y&7)*8+((x+1)&7))*256)+Int(input[src+x+1])] : input[src+x+1]/17 }
+                        output[dst+x/2] = first<<4 | second
+                    }
                 }
             } }
             pixels=packed
+        }
+        if indexed {
+            var indices = Data(count:w*h)
+            pixels.withUnsafeBytes { source in indices.withUnsafeMutableBytes { destination in
+                let p = source.bindMemory(to:UInt8.self), out = destination.bindMemory(to:UInt8.self)
+                for i in 0..<(w*h) { out[i] = (p[i*4] >> 5)<<5 | (p[i*4+1] >> 5)<<2 | (p[i*4+2] >> 6) }
+            } }
+            pixels = indices
         }
         let afterQuantize=DispatchTime.now().uptimeNanoseconds
         metrics.quantizeMilliseconds=Double(afterQuantize-stage)/1_000_000
@@ -170,7 +207,7 @@ final class TileEncoder {
                             var changed = force
                             if !changed {
                                 for row in y..<(y+th) {
-                                    if memcmp(now.baseAddress!.advanced(by: row*bytesPerRow+(gray16 ? x/2 : x*4)), old.baseAddress!.advanced(by: row*bytesPerRow+(gray16 ? x/2 : x*4)), gray16 ? (tw+1)/2 : tw*4) != 0 { changed=true; break }
+                                    if memcmp(now.baseAddress!.advanced(by: row*bytesPerRow+(gray16 ? x/2 : (indexed ? x : x*4))), old.baseAddress!.advanced(by: row*bytesPerRow+(gray16 ? x/2 : (indexed ? x : x*4))), gray16 ? (tw+1)/2 : (indexed ? tw : tw*4)) != 0 { changed=true; break }
                                 }
                             }
                             if changed { rects.append(CGRect(x:x,y:y,width:tw,height:th).intersection(visible)) }
@@ -194,9 +231,15 @@ final class TileEncoder {
         metrics.diffMilliseconds=Double(afterDiff-stage)/1_000_000
         stage=afterDiff
         defer { metrics.codecMilliseconds=Double(DispatchTime.now().uptimeNanoseconds-stage)/1_000_000 }
+        let space:CGColorSpace
+        if indexed {
+            var table = [UInt8](); table.reserveCapacity(768)
+            for i in 0..<256 { table.append(UInt8((i >> 5)*255/7)); table.append(UInt8(((i >> 2)&7)*255/7)); table.append(UInt8((i&3)*255/3)) }
+            guard let indexedSpace = CGColorSpace(indexedBaseSpace:CGColorSpaceCreateDeviceRGB(),last:255,colorTable:table) else { return [] }; space = indexedSpace
+        } else { space = gray16 ? CGColorSpaceCreateDeviceGray() : CGColorSpaceCreateDeviceRGB() }
         guard let provider = CGDataProvider(data: pixels as CFData),
-              let full = CGImage(width:w,height:h,bitsPerComponent:gray16 ? 4 : 8,bitsPerPixel:gray16 ? 4 : 32,bytesPerRow:bytesPerRow,space:gray16 ? CGColorSpaceCreateDeviceGray() : CGColorSpaceCreateDeviceRGB(),
-                                 bitmapInfo:gray16 ? [] : CGBitmapInfo(rawValue:CGImageAlphaInfo.noneSkipLast.rawValue),provider:provider,decode:nil,shouldInterpolate:false,intent:.defaultIntent) else { return [] }
+              let full = CGImage(width:w,height:h,bitsPerComponent:gray16 ? 4 : 8,bitsPerPixel:gray16 ? 4 : (indexed ? 8 : 32),bytesPerRow:bytesPerRow,space:space,
+                                 bitmapInfo:(gray16 || indexed) ? [] : CGBitmapInfo(rawValue:CGImageAlphaInfo.noneSkipLast.rawValue),provider:provider,decode:nil,shouldInterpolate:false,intent:.defaultIntent) else { return [] }
         return rects.compactMap { rect in
             let crop:CGImage
             if gray16 && rect != CGRect(x:0,y:0,width:w,height:h) {

@@ -1,0 +1,17 @@
+#!/bin/bash
+# Build the Portlight iPhone app for an available iOS Simulator (requires Xcode). Prints the .app path.
+source "$(dirname "$0")/lib.sh"
+require_xcode
+udid="$(pick_simulator)"
+mkdir -p "$EVIDENCE_DIR"
+log_file="$EVIDENCE_DIR/build-simulator.log"
+if ! xcodebuild -project "$IOS_DIR/Portlight.xcodeproj" -scheme Portlight -configuration Debug \
+     -destination "id=$udid" -derivedDataPath "$DERIVED_DATA" build > "$log_file" 2>&1; then
+  grep -E "error:" "$log_file" | sort -u | head -40 >&2 || tail -40 "$log_file" >&2
+  die "simulator build failed — $log_file"
+fi
+app="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/Portlight.app"
+[[ -d "$app" ]] || die "expected product missing: $app"
+warnings="$( { grep -E ": warning:" "$log_file" || true; } | sort -u | wc -l | tr -d ' ')"
+log "Built for $(sim_name "$udid") [$udid], $(xcodebuild -version | head -1); $warnings unique warnings — $log_file"
+printf '%s\n' "$app"

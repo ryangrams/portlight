@@ -2,6 +2,7 @@ import AppKit
 import ServiceManagement
 import Security
 import Foundation
+import ScreenCaptureKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
@@ -12,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var fixture=false
     var identifyWindows: [NSWindow]=[]
     var mainWindow: NSWindow?
+    var permissions: HostPermissions?
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         let args=CommandLine.arguments
@@ -33,8 +35,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusItem.button?.image=NSImage(systemSymbolName:"display.2",accessibilityDescription:"Portlight Host")
             statusItem.button?.toolTip="Portlight Host"
             refreshMenu()
+            if !fixture {
+                let permissions = HostPermissions(); self.permissions = permissions
+                permissions.onCaptureReady = { [weak self] in self?.server.activeSession?.retryCapture() }
+                permissions.onRestart = { [weak self] in self?.restartHost() }
+                permissions.onStart = { [weak self] in self?.start() }
+                server.onCaptureFailure = { [weak self] error in
+                    self?.permissions?.recordFailure(error)
+                    if capturePermissionDenied(error) { self?.permissions?.present() }
+                }
+            }
             if fixture || args.contains("--start") || UserDefaults.standard.bool(forKey:"startServerOnLaunch") { start() }
-            else if !security.hasPassword { showSetup() }
+            if !fixture {
+                let firstLaunch = !UserDefaults.standard.bool(forKey:"permissionSetupPresented")
+                UserDefaults.standard.set(true,forKey:"permissionSetupPresented")
+                if firstLaunch || !CGPreflightScreenCaptureAccess() || !AXIsProcessTrusted() || args.contains("--permissions") {
+                    permissions?.present(request:firstLaunch)
+                }
+            }
         } catch { alert("Portlight could not start",error.localizedDescription); NSApp.terminate(nil) }
     }
     func applicationWillTerminate(_ notification: Notification) { server?.stop() }
@@ -50,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         add(menu,"Set Password…",#selector(changePassword))
         add(menu,"Change Port…",#selector(changePort))
         menu.addItem(.separator())
+        add(menu,"Permissions…",#selector(showPermissions))
         add(menu,"Screen Recording Permission…",#selector(screenPermission))
         add(menu,"Remote Control Permission…",#selector(controlPermission))
         add(menu,"Identify Displays",#selector(identify))
@@ -96,6 +115,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dialog.addButton(withTitle:"Done");dialog.addButton(withTitle:"Copy Details");NSApp.activate(ignoringOtherApps:true)
         if dialog.runModal() == .alertSecondButtonReturn { NSPasteboard.general.clearContents();NSPasteboard.general.setString(details,forType:.string) }
     }
+    @objc func showPermissions() { permissions?.present() }
+    func restartHost() {
+        let wasSharing = server.listener != nil
+        var arguments = Array(CommandLine.arguments.dropFirst()).filter { $0 != "--start" && $0 != "--permissions" }
+        arguments.append("--permissions")
+        if wasSharing { arguments.append("--start") }
+        let config = NSWorkspace.OpenConfiguration(); config.createsNewApplicationInstance = true; config.arguments = arguments
+        server.stop()
+        NSWorkspace.shared.openApplication(at:Bundle.main.bundleURL,configuration:config) { [weak self] app,error in
+            DispatchQueue.main.async {
+                if let error {
+                    if wasSharing { self?.start() }
+                    self?.alert("Could not restart Portlight Host",error.localizedDescription)
+                } else if app != nil { NSApp.terminate(nil) }
+            }
+        }
+    }
     @objc func screenPermission() {
         if !CGPreflightScreenCaptureAccess() { _=CGRequestScreenCaptureAccess() }
         NSWorkspace.shared.open(URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
@@ -121,11 +157,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline:.now()+3) { [weak self] in self?.identifyWindows.forEach{$0.close()};self?.identifyWindows=[] }
     }
     @objc func about() { alert("Portlight · Studio Upgrade","Private LAN/VPN remote desktop.\n\nVersion 0.2.0 preview\nOne viewer per computer. Mac login-window access is not enabled in this preview.\n\nOpen source under the MIT license.") }
-    func showSetup() { alert("Welcome to Portlight Host","Use the display icon in the menu bar to set a password, grant Screen Recording and Accessibility permissions, then start sharing. Your Mac's screen resolution stays unchanged.") }
     func alert(_ title:String,_ message:String) { if fixture { fputs("\(title): \(message)\n",stderr);fflush(stderr);return }; let alert=NSAlert();alert.messageText=title;alert.informativeText=message;NSApp.activate(ignoringOtherApps:true);alert.runModal() }
 }
 
 func selfTest() throws {
+    precondition(testAACRoundTrip())
+    let denied = NSError(domain:SCStreamErrorDomain,code:SCStreamError.Code.userDeclined.rawValue)
+    let invalid = NSError(domain:SCStreamErrorDomain,code:SCStreamError.Code.invalidParameter.rawValue)
+    precondition(capturePermissionDenied(denied) && !capturePermissionDenied(invalid))
+    precondition(captureFailureMessage(denied).contains("Restart Host"))
+    precondition(!captureFailureMessage(invalid).contains("macOS denied"))
     let displays=availableDisplays(fixture:true)
     precondition(scaledSize(displays[0],preset:"hd").0 == 1280)
     precondition(commonResolution("uhd",displays:displays) == "fhd")

@@ -1,0 +1,181 @@
+#!/bin/bash
+# End to end on an iOS Simulator: the real Portlight iPhone app against an isolated Portlight fixture host
+# (synthetic displays, no capture, no input injection) on a free loopback port of this Mac (requires Xcode).
+#   scripts/test-e2e                    # on the Mac with Xcode
+#   scripts/studio scripts/test-e2e     # from a Mac without Xcode
+# Runs UITests/FixtureSessionTests through scripts/test-ui, then copies the app's transcripts, the screenshots
+# and the xcresult summary into evidence/e2e/ and checks the transcripts: a revision-1 subscribe lists fixture-1,
+# fixture-2 and fixture-3, frames were received and acknowledged, each failure test (wrong password, refused port,
+# busy host, silent host, no route) ended the way its card says, and no file contains a password.
+source "$(dirname "$0")/lib.sh"
+require_xcode
+
+out="$EVIDENCE_DIR/e2e"
+rm -rf "$out"
+mkdir -p "$out/screenshots"
+# Must match FixtureSessionTests.wrongPassword; the refused-port test types another synthetic string.
+wrong_password="wrong-e2e-password"
+unused_password="unused-e2e-password"
+
+eval "$("$IOS_DIR/scripts/fixture-host" start)"
+cleanup() {
+  if [[ -n "${PORTLIGHT_FIXTURE_STATE:-}" && -d "$PORTLIGHT_FIXTURE_STATE" ]]; then
+    cp "$PORTLIGHT_FIXTURE_STATE/host.log" "$out/fixture-host.log" 2>/dev/null || true
+    "$IOS_DIR/scripts/fixture-host" stop "$PORTLIGHT_FIXTURE_STATE" || true
+  fi
+}
+trap cleanup EXIT
+export PORTLIGHT_FIXTURE_HOST PORTLIGHT_FIXTURE_PORT PORTLIGHT_FIXTURE_FINGERPRINT PORTLIGHT_FIXTURE_PASSWORD
+log "Fixture host on $PORTLIGHT_FIXTURE_HOST:$PORTLIGHT_FIXTURE_PORT, fingerprint $PORTLIGHT_FIXTURE_FINGERPRINT"
+
+marker="$(mktemp "${TMPDIR:-/tmp}/portlight-e2e.XXXXXX")"
+status=0
+"$IOS_DIR/scripts/test-ui" FixtureSessionTests || status=$?
+
+udid="$(pick_simulator)"
+container="$(xcrun simctl get_app_container "$udid" studio.upgrade.remote.viewer.ios data 2>/dev/null || true)"
+if [[ -n "$container" && -d "$container" ]]; then
+  cp "$container"/Documents/portlight-transcript*.log "$out/" 2>/dev/null || true
+  # The connection lists the UI tests saved (PORTLIGHT_TEST_DATA_DIR lives in the app's tmp): no password inside.
+  while IFS= read -r file; do
+    cp "$file" "$out/connections-$(basename "$(dirname "$file")").json"
+  done < <(find "$container/tmp" -name Connections.json -newer "$marker" 2>/dev/null)
+else
+  log "App data container not found on $udid"
+fi
+
+result="$(find "$EVIDENCE_DIR" -maxdepth 1 -name 'xcode-ui-*.xcresult' -newer "$marker" 2>/dev/null | sort | tail -1)"
+attachments=""
+if [[ -n "$result" ]]; then
+  xcrun xcresulttool get test-results summary --path "$result" --compact > "$out/xcresult-summary.json" 2>/dev/null || true
+  xcrun xcresulttool get test-results tests --path "$result" --compact > "$out/xcresult-tests.json" 2>/dev/null || true
+  printf '%s\n' "$(basename "$result")" > "$out/xcresult-name.txt"
+  attachments="$EVIDENCE_DIR/attachments/$(basename "$result" .xcresult)"
+fi
+rm -f "$marker"
+
+checks=0
+python3 - "$out" "$attachments" "$PORTLIGHT_FIXTURE_PASSWORD" "$wrong_password" "$unused_password" <<'PY' || checks=$?
+import json, os, re, shutil, sys
+
+out, attachments, *secrets = sys.argv[1:]
+failures = []
+
+# Screenshots under their attachment names.
+manifest = os.path.join(attachments, "manifest.json") if attachments else ""
+if manifest and os.path.exists(manifest):
+    index = []
+    for test in json.load(open(manifest)):
+        for item in test.get("attachments", []):
+            name = re.sub(r"_\d+_[0-9A-F-]{36}(\.\w+)$", r"\1", item.get("suggestedHumanReadableName", item["exportedFileName"]))
+            source = os.path.join(attachments, item["exportedFileName"])
+            if os.path.exists(source) and name.endswith(".png"):
+                if item.get("isAssociatedWithFailure"):
+                    name = "failure-" + name
+                shutil.copy(source, os.path.join(out, "screenshots", name))
+                index.append(f"{name}\t{test.get('testIdentifier', '')}")
+    open(os.path.join(out, "screenshots", "index.tsv"), "w").write("\n".join(sorted(index)) + "\n")
+    print(f"screenshots: {len(index)}")
+else:
+    failures.append("no exported screenshots")
+
+def lines(name):
+    path = os.path.join(out, name)
+    return open(path, errors="replace").read().splitlines() if os.path.exists(path) else None
+
+main = lines("portlight-transcript.log")
+if main is None:
+    failures.append("portlight-transcript.log was not written")
+    main = []
+fixture_ids = ["fixture-1", "fixture-2", "fixture-3"]
+first = [l for l in main if l.startswith("→ subscribe {revision:1 ")]
+acked = [l for l in main if l.startswith("← subscribed {revision:1 ")]
+if not first:
+    failures.append("no revision-1 subscribe in the transcript")
+for line in first:
+    if "displays:[fixture-1,fixture-2,fixture-3]" not in line:
+        failures.append("revision 1 did not subscribe all three displays: " + line)
+if not acked or not all(d in acked[0] for d in fixture_ids):
+    failures.append("the host did not acknowledge revision 1 for all three displays")
+counts = {
+    "lines": len(main),
+    "hello": sum(l.startswith("→ hello ") for l in main),
+    "welcome": sum(l.startswith("← welcome ") for l in main),
+    "subscribe": sum(l.startswith("→ subscribe ") for l in main),
+    "subscribed": sum(l.startswith("← subscribed ") for l in main),
+    "frames": sum(l.startswith("← frame ") for l in main),
+    "frameAcks": sum(l.startswith("→ frameAck ") for l in main),
+    "revision-1 subscribes (all three displays)": len(first),
+    "subscribe without Display 2": sum(l.startswith("→ subscribe ") and "displays:[fixture-1,fixture-3]" in l for l in main),
+    "subscribe color256": sum(l.startswith("→ subscribe ") and "color:color256" in l for l in main),
+    "subscribe paused:true audio:false": sum(l.startswith("→ subscribe ") and "paused:true audio:false" in l for l in main),
+    "subscribe viewOnly:true": sum(l.startswith("→ subscribe ") and "viewOnly:true" in l for l in main),
+    "pointer/wheel/key/text": sum(l.startswith(("→ pointer", "→ wheel", "→ key", "→ text")) for l in main),
+}
+for key, value in counts.items():
+    print(f"transcript {key}: {value}")
+if counts["frames"] == 0 or counts["frameAcks"] == 0:
+    failures.append("no frames were received and acknowledged")
+if any("password:" in l and "password:<redacted>" not in l for l in main if l.startswith("→ hello")):
+    failures.append("a hello line shows a password")
+
+wrong = lines("portlight-transcript-wrong-password.log")
+if wrong is None or not any(l.startswith("← error {code:authentication") for l in wrong):
+    failures.append("the wrong-password transcript has no authentication error")
+refused = lines("portlight-transcript-refused.log")
+if refused is None:
+    failures.append("the refused-port transcript was not written")
+elif any(l.startswith("← welcome") for l in refused):
+    failures.append("the refused port answered")
+busy = lines("portlight-transcript-busy.log")
+if busy is None or not any(l.startswith("← error {code:busy") for l in busy):
+    failures.append("the busy-host transcript has no busy error")
+elif not any(l.startswith("← welcome") for l in busy):
+    failures.append("Try Again never connected after the other viewer left")
+silent = lines("portlight-transcript-silent.log")
+if silent is None or not any(l.startswith("· failed timedOut") for l in silent):
+    failures.append("the silent-host transcript does not end in timedOut")
+elif any(l.startswith("→ hello") for l in silent):
+    failures.append("a hello was sent to the silent host")
+no_route = lines("portlight-transcript-no-route.log")
+if no_route is None:
+    print("no-route transcript: none (the test skips where this Mac routes 100::1)")
+elif not any(l.startswith("· ") and "noRoute" in l for l in no_route):
+    failures.append("the no-route transcript does not report noRoute")
+elif any(l.startswith("→ hello") for l in no_route):
+    failures.append("a hello was sent to the unroutable address")
+life = lines("portlight-transcript-lifecycle.log")
+if life is None:
+    failures.append("the lifecycle transcript was not written")
+else:
+    welcomes = [i for i, l in enumerate(life) if l.startswith("← welcome")]
+    ends = [i for i, l in enumerate(life) if l.startswith(("· disconnect", "· cancel", "· suspend"))]
+    if len(welcomes) < 2:
+        failures.append("the session did not reconnect after returning to the foreground")
+    elif not any(welcomes[0] < i < welcomes[1] for i in ends):
+        failures.append("the session did not end while the app was in the background")
+    if any(l.startswith(("→ pointer", "→ wheel", "→ key", "→ text")) for l in life):
+        failures.append("input was sent during the lifecycle test")
+
+# No password anywhere in the evidence.
+checked = 0
+for name in sorted(os.listdir(out)):
+    path = os.path.join(out, name)
+    if not os.path.isfile(path) or not name.endswith((".log", ".json")):
+        continue
+    text = open(path, errors="replace").read()
+    checked += 1
+    for secret in secrets:
+        if secret and secret in text:
+            failures.append(f"{name} contains a password")
+print(f"files checked for passwords: {checked}")
+
+if failures:
+    print("E2E CHECKS FAILED:\n  " + "\n  ".join(failures))
+    sys.exit(1)
+print("E2E checks passed")
+PY
+
+[[ "$status" -eq 0 ]] || die "FixtureSessionTests failed (exit $status) — evidence in $out"
+[[ "$checks" -eq 0 ]] || die "transcript/evidence checks failed — $out"
+log "E2E passed on $(sim_name "$udid") — evidence in $out"

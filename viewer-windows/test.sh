@@ -5,3 +5,6 @@ TEST_BIN=$(mktemp /tmp/su-viewer-protocol-test.XXXXXX)
 trap 'rm -f "$TEST_BIN"' EXIT
 clang++ -std=c++17 -fsanitize=address,undefined -g "$BASE/tests/protocol_validation.cpp" -o "$TEST_BIN"
 "$TEST_BIN"
+
+clang++ -std=c++17 -fsanitize=address,undefined -g "$BASE/tests/display_layout.cpp" -o "$TEST_BIN"
+"$TEST_BIN"

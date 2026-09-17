@@ -1,0 +1,43 @@
+#!/bin/bash
+# Run a viewer-ios command on the Mac that has Xcode (default ssh alias "studio"), inside an
+# isolated mirror directory, then copy viewer-ios/evidence back here.
+#   scripts/studio scripts/build-simulator
+#   scripts/studio scripts/test-unit
+# Syncs only what the iOS build and the fixture host need. Never touches URC or a live host.
+source "$(dirname "$0")/lib.sh"
+
+HOST="${PORTLIGHT_STUDIO_HOST:-studio}"
+REMOTE="${PORTLIGHT_STUDIO_DIR:-SUDev/portlight-ios-work/app}"
+[[ $# -gt 0 ]] || die "usage: scripts/studio <command> [args...]"
+case "$REMOTE" in
+  *"Ultimate Remote Connect"*|/Applications*|""|/) die "refusing to sync into '$REMOTE'";;
+esac
+
+ssh -o BatchMode=yes "$HOST" "mkdir -p '$REMOTE'"
+# A full disk shows up as baffling build and simulator failures; stop early with a clear reason instead.
+free_kib="$(ssh -o BatchMode=yes "$HOST" "df -k ~ | awk 'NR==2 {print \$4}'")"
+min_kib=$(( ${PORTLIGHT_STUDIO_MIN_FREE_GIB:-4} * 1024 * 1024 ))
+if [[ "$free_kib" =~ ^[0-9]+$ ]] && (( free_kib < min_kib )); then
+  die "$HOST has only $(( free_kib / 1024 / 1024 )) GiB free (minimum ${PORTLIGHT_STUDIO_MIN_FREE_GIB:-4}); free space before building"
+fi
+(cd "$APP_ROOT" && rsync -a --delete \
+  --exclude '.build/' --exclude '.swiftpm/' --exclude 'DerivedData/' --exclude 'build/' \
+  --exclude 'build-media/' --exclude '.DS_Store' --exclude '__pycache__/' --exclude 'Portlight.iconset/' \
+  --exclude 'evidence/' --exclude 'xcuserdata/' \
+  LICENSE shared branding server-macos tests viewer-ios "$HOST:$REMOTE/")
+
+command=""
+for arg in "$@"; do command+=" $(printf '%q' "$arg")"; done
+forward=""
+for name in $(compgen -e | grep '^PORTLIGHT_' | grep -v -E '^PORTLIGHT_(STUDIO_|EVIDENCE_DIR|DERIVED_DATA|FIXTURE_BUILD_DIR)'); do
+  forward+=" $name=$(printf '%q' "${!name}")"
+done
+
+status=0
+ssh -o BatchMode=yes "$HOST" "cd '$REMOTE/viewer-ios' && env$forward$command" || status=$?
+mkdir -p "$EVIDENCE_DIR"
+if rsync -a "$HOST:$REMOTE/viewer-ios/evidence/" "$EVIDENCE_DIR/" 2>/dev/null; then
+  # Result bundles (with screen recordings) are large and now copied here; keep the remote disk lean.
+  ssh -o BatchMode=yes "$HOST" "find '$REMOTE/viewer-ios/evidence' -maxdepth 3 -name '*.xcresult' -type d -prune -exec rm -rf {} + ; rm -rf '$REMOTE/viewer-ios/evidence/attachments'" || true
+fi
+exit $status

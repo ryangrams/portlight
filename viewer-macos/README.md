@@ -57,3 +57,15 @@ A single capture can be generated with:
 Use `session` for the viewing window; add `--popover settings` or `--popover displays` to capture the anchored panel.
 
 Current limitations: no H.264 decoder, native IME/composed-text input, independent audio volume control, or multiple simultaneous viewing windows. Real capture/control/audio still require a consented target-machine acceptance test. PNG/JPEG and reduced-color modes are supported.
+
+## Display layout and connections
+
+The viewing toolbar provides a display map, HD/FHD/QHD/UHD grid buttons, color mode, Fit, 100%, 10% zoom steps, pause, remote control, edge-follow panning, audio, fullscreen, and disconnect. The map preserves the host's logical display arrangement; inactive displays are dimmed. If a compact map target would be smaller than 28×20 points, click the map to expand it. The viewing canvas removes empty rows/columns between selected displays while retaining their logical proportions. 100% refers to logical desktop points, independently of stream pixel density.
+
+Fit remains active through resize, centers the selected collection, and constrains the non-fullscreen window to the collection's aspect ratio. Pause dims the retained image and blocks control. Pointer drags are routed to the selected display currently under the pointer, even when the drag began on a different canvas. Real application window-drag behavior across skipped host displays still depends on macOS and the application.
+
+Connection names are optional; Save Connection uses “Saved Connection” when blank. The compact sidebar supports groups, a + menu for creating connections/groups, removal with −, and drag-to-group/reorder. Removing a group keeps its connections ungrouped. Double-click a group to collapse or expand it.
+
+ZeroTier pairs one network per connection. Portlight waits up to 30 seconds for that network to become ready before opening the desktop. Other networks paired with Portlight are disconnected first; unrelated memberships remain untouched. The saved “disconnect when the desktop disconnects” option leaves the paired network on normal disconnect; otherwise it stays connected for faster reuse. A canceled or failed connection restores the previous state, with recovery records retained if cleanup fails. No live network mutation occurs while editing a preset.
+
+Audio remains off by default. Updated hosts support AAC mono 48 kbps or stereo 96/160/320 kbps. Older hosts retain legacy 192 kbps mono μ-law audio; unsupported quality options are disabled. “65,536 colors (16-bit)” is intentionally distinguished from “16 shades of gray”; it is not a 16-color mode.

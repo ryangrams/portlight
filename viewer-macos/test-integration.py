@@ -32,10 +32,10 @@ with tempfile.TemporaryDirectory(prefix='su-native-viewer-test-') as folder:
             subprocess.run([str(VIEWER), '--integration-test', '15922', fingerprint, str(report), str(snapshot)], input='fixture-password\n', text=True, timeout=25, check=True)
             result = json.loads(report.read_text())
             assert result['connected'] and result['framesDecoded'] > 0 and result['framesRejected'] == 0, result
-            assert len(result['selected']) == 3 and result['revision'] >= 2, result
+            assert len(result['selected']) == 3 and result['revision'] == 1, result
             assert result['startedInConnections'] and result['sessionWindowVisible'] and not result['connectionsWindowVisible'] and result['returnedToConnections'], result
             print(json.dumps(result, indent=2))
-            print('PASS native TLS/WebSocket, monitor switching, and image decoding')
+            print('PASS native TLS/WebSocket, automatic all-monitor subscription, and image decoding')
             print(snapshot)
         finally:
             server.terminate()

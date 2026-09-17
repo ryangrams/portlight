@@ -61,7 +61,7 @@ def certificate(folder):
 async def run(viewer):
     observed = {'connections': 0, 'authenticated': 0, 'subscriptions': [], 'framesSent': 0, 'gray4Frames': 0, 'acks': 0}
     displays = [dict(id=f'fixture-{i}', name=f'Test Monitor {i}', width=1920, height=1080,
-                     primary=i == 1) for i in range(1, 4)]
+                     primary=i == 1, x=(i-1)*1920, y=0, logicalWidth=1920, logicalHeight=1080) for i in range(1, 4)]
     known = {d['id'] for d in displays}
 
     async def connection(ws):
@@ -83,6 +83,8 @@ async def run(viewer):
             if kind == 'subscribe':
                 ids = message['displays']
                 assert set(ids) <= known and len(ids) == len(set(ids))
+                assert message['fps'] == 60 and message['bandwidthKbps'] == 0
+                assert message['color'] in ('full', 'gray16', 'color256')
                 revision = message['revision']
                 observed['subscriptions'].append(dict(revision=revision, displays=ids))
                 width = min(1920, message['maxWidth'])
@@ -105,6 +107,10 @@ async def run(viewer):
                     encoded = io.BytesIO()
                     image.save(encoded, format='PNG')
                     payload = encoded.getvalue()
+                    if id == 'fixture-2':
+                        encoded = io.BytesIO()
+                        image.quantize(colors=256).save(encoded, format='PNG')
+                        payload = encoded.getvalue()
                     if id == 'fixture-3':
                         payload = gray4_png(width, height)
                         observed['gray4Frames'] += 1
@@ -159,7 +165,7 @@ async def run(viewer):
                        ('connectionsAtStart', 'viewingAfterAuthentication', 'connectionsAfterDisconnect')), native
         assert observed['connections'] == 1 and observed['authenticated'] == 1, observed
         selections = [set(s['displays']) for s in observed['subscriptions']]
-        assert {'fixture-1'} in selections and {'fixture-3'} in selections and {'fixture-1', 'fixture-3'} in selections, observed
+        assert {'fixture-1', 'fixture-2', 'fixture-3'} in selections and {'fixture-3'} in selections and {'fixture-1', 'fixture-3'} in selections, observed
         assert observed['acks'] >= 3, observed
         assert observed['gray4Frames'] >= 2, observed
         print(json.dumps(dict(ok=True, native=native, protocol=observed), indent=2))
