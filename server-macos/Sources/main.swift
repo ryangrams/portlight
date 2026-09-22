@@ -122,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         DispatchQueue.main.asyncAfter(deadline:.now()+3) { [weak self] in self?.identifyWindows.forEach{$0.close()};self?.identifyWindows=[] }
     }
-    @objc func about() { alert("Portlight · Studio Upgrade","Private LAN/VPN remote desktop.\n\nVersion 0.2.0 preview\nOne viewer per computer. Mac login-window access is not enabled in this preview.\n\nOpen source under the MIT license.") }
+    @objc func about() { alert("Portlight · Studio Upgrade","Private LAN/VPN remote desktop.\n\nVersion 0.2.1-messages.1 preview\nOne viewer per computer. Mac login-window access is not enabled in this preview.\n\nOpen source under the MIT license.") }
     func showSetup() { alert("Welcome to Portlight Host","Use the display icon in the menu bar to set a password, grant Screen Recording and Accessibility permissions, then start sharing. Your Mac's screen resolution stays unchanged.") }
     func alert(_ title:String,_ message:String) { if fixture { fputs("\(title): \(message)\n",stderr);fflush(stderr);return }; let alert=NSAlert();alert.messageText=title;alert.informativeText=message;NSApp.activate(ignoringOtherApps:true);alert.runModal() }
 }

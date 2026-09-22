@@ -23,7 +23,7 @@ REPORT_FLAGS = (
     "composerOpened", "controlWithComposerOpen", "stickyAcknowledged",
     "bothTargetsAcknowledged", "targetSelectionAcknowledged", "lastTargetProtected",
     "clearAcknowledged", "timedAcknowledged", "timedExpired", "draftRetained",
-    "revisionUnchanged", "viewingSelectionUnchanged",
+    "revisionUnchanged", "viewingSelectionUnchanged", "visibleCanvasStable",
 )
 OPERATIONS = ["sticky", "both-targets", "first-target", "clear", "timed", "expired"]
 
@@ -36,6 +36,9 @@ def validate(observed, native):
     assert native.get("durationMs", 0) >= 120000, native
     assert native.get("framesDecodedAfterMessaging", 0) >= 240, native
     assert native.get("maxDecodedFrameGapMs", 1500) < 1500, native
+    assert native.get("visibleCanvasSamples", 0) >= 1200, native
+    assert native.get("visibleCanvasMismatches") == 0, native
+    assert native.get("maxVisibleSampleGapMs", 1500) < 1500, native
     assert observed["connections"] == observed["authenticated"] == 1, observed
     assert not observed["errors"], observed["errors"]
     cycles = native.get("cycles", 0)
@@ -55,7 +58,8 @@ def validate(observed, native):
 def self_test():
     native = dict.fromkeys(REPORT_FLAGS, True)
     native.update(ok=True, rejectedFrames=0, framesDecoded=482, durationMs=120100,
-                  framesDecodedAfterMessaging=480, maxDecodedFrameGapMs=250, cycles=2)
+                  framesDecodedAfterMessaging=480, maxDecodedFrameGapMs=250, cycles=2,
+                  visibleCanvasSamples=4000, visibleCanvasMismatches=0, maxVisibleSampleGapMs=25)
     observed = dict(connections=1, authenticated=1, errors=[], operations=OPERATIONS * 2,
                     frozenSubscription=dict(revision=2, displays=["fixture-1"]),
                     targetsAtFreeze=["fixture-2"], subscriptionChangesAfterFreeze=0,
@@ -82,7 +86,18 @@ def self_test():
         except AssertionError:
             continue
         raise AssertionError(f"Fixture accepted a missing native check: {flag}")
-    print(f"PASS: fixture assertions reject {len(cases)} wire failures and {len(REPORT_FLAGS)} native failures")
+    native_cases = [("visibleCanvasSamples", 1199), ("visibleCanvasMismatches", 1),
+                    ("maxVisibleSampleGapMs", 1500), ("framesDecodedAfterMessaging", 239),
+                    ("maxDecodedFrameGapMs", 1500), ("durationMs", 119999)]
+    for field, value in native_cases:
+        broken = dict(native, **{field: value})
+        try:
+            validate(observed, broken)
+        except AssertionError:
+            continue
+        raise AssertionError(f"Fixture accepted an invalid native measurement: {field}")
+    print(f"PASS: fixture assertions reject {len(cases)} wire failures and "
+          f"{len(REPORT_FLAGS) + len(native_cases)} native failures")
 
 
 async def run(viewer: Path, report_path: Path):

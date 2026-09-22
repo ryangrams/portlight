@@ -45,6 +45,8 @@ HOOKS: dict[str, tuple[tuple[str, str], ...]] = {
         ('        add(menu,"About Portlight",#selector(about))\n',
          '        add(menu,"About Portlight",#selector(about))\n'
          "        appendMessageMenu(to: menu)\n"),
+        ('\\n\\nVersion 0.2.0 preview\\nOne viewer per computer.',
+         '\\n\\nVersion 0.2.1-messages.1 preview\\nOne viewer per computer.'),
         ('if CommandLine.arguments.contains("--self-test") {\n', r'''if CommandLine.arguments.contains("--popup-self-test") {
     _ = NSApplication.shared
     do { try popupMessageSelfTest();exit(0) } catch { fputs("FAIL: \(error)\n",stderr);exit(1) }

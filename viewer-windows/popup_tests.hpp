@@ -9,6 +9,8 @@ static ULONGLONG stageStarted = 0;
 static uint64_t frozenRevision = 0;
 static uint64_t observedFrameCount = 0, framesAtMessagingStart = 0;
 static ULONGLONG lastDecodedFrameAt = 0, maxDecodedFrameGap = 0;
+static ULONGLONG lastVisibleSampleAt = 0, maxVisibleSampleGap = 0;
+static uint64_t visibleCanvasSamples = 0, visibleCanvasMismatches = 0;
 static std::vector<std::string> frozenSelection;
 static json testReport = json::object();
 static const wchar_t *testDraft = L"Ready\U0001f3acGo";
@@ -202,14 +204,70 @@ static json runNativeTests(const std::wstring &folder) {
   }
   return {{"ok", true}, {"checks", checks}};
 }
+static void sampleVisibleCanvas() {
+  auto now = GetTickCount64();
+  require(IsWindowVisible(canvas) && !IsIconic(mainWindow),
+           "The streaming canvas is not visible during the pixel test");
+  auto frames = monitorLayout();
+  auto frame = frames.find("fixture-1");
+  require(frame != frames.end(), "The pixel-test display is missing");
+  const auto &rect = frame->second;
+  auto origin = canvasOrigin();
+  RECT bounds{};
+  GetClientRect(canvas, &bounds);
+  // Read visible pixels without requesting a repaint or reading CanvasBuffer.
+  for (double nx : {0.96, 0.92, 0.84, 0.12, 0.5}) {
+    for (double ny : {0.8, 0.6, 0.9, 0.3, 0.15}) {
+      POINT client{int((rect.x + rect.w * nx) * zoom) + origin.x,
+                   int((rect.y + rect.h * ny) * zoom) + origin.y};
+      if (!PtInRect(&bounds, client))
+        continue;
+      POINT screen = client;
+      ClientToScreen(canvas, &screen);
+      if (WindowFromPoint(screen) != canvas)
+        continue;
+      HDC windowDC = GetDC(canvas), screenDC = GetDC(nullptr);
+      require(windowDC && screenDC, "Could not read the visible canvas device context");
+      COLORREF windowPixel = GetPixel(windowDC, client.x, client.y);
+      COLORREF screenPixel = GetPixel(screenDC, screen.x, screen.y);
+      ReleaseDC(canvas, windowDC);
+      ReleaseDC(nullptr, screenDC);
+      auto isFixture = [](COLORREF color) {
+        return color != CLR_INVALID && GetRValue(color) == 22 && GetBValue(color) == 130 &&
+               GetGValue(color) >= 70 && GetGValue(color) < 220;
+      };
+      ++visibleCanvasSamples;
+      maxVisibleSampleGap = std::max(maxVisibleSampleGap, now - lastVisibleSampleAt);
+      lastVisibleSampleAt = now;
+      bool matches = isFixture(windowPixel) && isFixture(screenPixel);
+      if (!matches) {
+        ++visibleCanvasMismatches;
+        testReport["failedVisibleSample"] = {
+            {"client", {client.x, client.y}}, {"screen", {screen.x, screen.y}},
+            {"windowRGB", {GetRValue(windowPixel), GetGValue(windowPixel), GetBValue(windowPixel)}},
+            {"screenRGB", {GetRValue(screenPixel), GetGValue(screenPixel), GetBValue(screenPixel)}}};
+      }
+      require(matches, "Visible canvas pixels stopped matching the streamed fixture");
+      return;
+    }
+  }
+  require(now - lastVisibleSampleAt < 1500,
+           "The composer or another window covered every visible pixel-test point");
+}
 static void finishIntegration(const std::string &error = "") {
   KillTimer(mainWindow, 3);
+  KillTimer(mainWindow, 5);
   testReport["error"] = error;
   testReport["ok"] = error.empty();
   testReport["framesDecoded"] = receivedFrames;
   testReport["framesDecodedAfterMessaging"] = receivedFrames - framesAtMessagingStart;
   testReport["durationMs"] = GetTickCount64() - integrationStarted;
   testReport["maxDecodedFrameGapMs"] = maxDecodedFrameGap;
+  testReport["visibleCanvasSamples"] = visibleCanvasSamples;
+  testReport["visibleCanvasMismatches"] = visibleCanvasMismatches;
+  testReport["maxVisibleSampleGapMs"] = maxVisibleSampleGap;
+  testReport["visibleCanvasStable"] = visibleCanvasSamples >= 1200 &&
+                                      visibleCanvasMismatches == 0 && maxVisibleSampleGap < 1500;
   testReport["rejectedFrames"] = integrationRejected;
   testReport["subscriptions"] = integrationSubscriptions;
   testReport["revisionUnchanged"] = revision == frozenRevision;
@@ -219,7 +277,8 @@ static void finishIntegration(const std::string &error = "") {
     testReport["ok"] = testReport["revisionUnchanged"].get<bool>() &&
                         testReport["viewingSelectionUnchanged"].get<bool>() &&
                         testReport["draftRetained"].get<bool>() && integrationRejected == 0 &&
-                        maxDecodedFrameGap < 3000 && receivedFrames > framesAtMessagingStart + 100;
+                        maxDecodedFrameGap < 3000 && receivedFrames > framesAtMessagingStart + 100 &&
+                        testReport["visibleCanvasStable"].get<bool>();
   integrationExitCode = testReport["ok"].get<bool>() ? 0 : 1;
   std::string output = testReport.dump(2) + "\n";
   std::ofstream file(wide(integrationReport).c_str(), std::ios::binary | std::ios::trunc);
@@ -230,9 +289,13 @@ static void finishIntegration(const std::string &error = "") {
   DestroyWindow(mainWindow);
 }
 static bool integrationTimer(WPARAM timer) {
-  if (timer != 3)
+  if (timer != 3 && timer != 5)
     return false;
   try {
+    if (timer == 5) {
+      sampleVisibleCanvas();
+      return true;
+    }
     auto now = GetTickCount64();
     require(now - integrationStarted < 140000, "Popup integration timed out");
     require(integrationFailure.empty(), integrationFailure.c_str());
@@ -270,6 +333,10 @@ static bool integrationTimer(WPARAM timer) {
       }
       open();
       setTestDraft();
+      if (!lastVisibleSampleAt) {
+        lastVisibleSampleAt = now;
+        SetTimer(mainWindow, 5, 25, nullptr);
+      }
       testReport["composerOpened"] = panel && IsWindowVisible(panel);
       exerciseCanvasInput();
       testReport["controlWithComposerOpen"] = true;
