@@ -204,6 +204,94 @@ static json runNativeTests(const std::wstring &folder) {
   }
   return {{"ok", true}, {"checks", checks}};
 }
+static json rectangleJSON(const RECT &rect) {
+  return {rect.left, rect.top, rect.right, rect.bottom};
+}
+static RECT testWorkArea() {
+  MONITORINFO monitor{};
+  monitor.cbSize = sizeof(monitor);
+  require(GetMonitorInfoW(MonitorFromWindow(mainWindow, MONITOR_DEFAULTTONEAREST), &monitor),
+           "Could not read the test monitor work area");
+  return monitor.rcWork;
+}
+static json visibleTestGeometry() {
+  json windows = json::object();
+  for (auto entry : {std::make_pair("main", mainWindow), std::make_pair("canvas", canvas),
+                     std::make_pair("composer", panel)}) {
+    RECT outer{}, client{};
+    GetWindowRect(entry.second, &outer);
+    GetClientRect(entry.second, &client);
+    MapWindowPoints(entry.second, nullptr, reinterpret_cast<POINT *>(&client), 2);
+    windows[entry.first] = {{"window", rectangleJSON(outer)},
+                             {"clientOnScreen", rectangleJSON(client)},
+                             {"visible", bool(IsWindowVisible(entry.second))}};
+  }
+  auto origin = canvasOrigin();
+  windows["workArea"] = rectangleJSON(testWorkArea());
+  windows["zoom"] = zoom;
+  windows["canvasOrigin"] = {origin.x, origin.y};
+  return windows;
+}
+static void arrangeVisibleTestWindow() {
+  RECT work = testWorkArea();
+  int margin = px(8);
+  int width = std::min(px(1100), int(work.right - work.left) - margin * 2);
+  int height = std::min(px(760), int(work.bottom - work.top) - margin * 2);
+  require(width >= px(720) && height >= px(480),
+           "The desktop work area is too small for the visible-canvas test");
+  SetWindowPos(mainWindow, HWND_TOP, work.left + margin, work.top + margin,
+                 width, height, SWP_SHOWWINDOW);
+  SetForegroundWindow(mainWindow);
+}
+static void arrangeVisibleTestComposer() {
+  RECT work = testWorkArea(), bounds{}, owner{};
+  GetWindowRect(panel, &bounds);
+  GetWindowRect(mainWindow, &owner);
+  int width = bounds.right - bounds.left, height = bounds.bottom - bounds.top;
+  require(width < work.right - work.left && height < work.bottom - work.top,
+           "The composer does not fit within the test monitor work area");
+  int x = std::clamp(int(owner.left + px(8)), int(work.left), int(work.right) - width);
+  int y = std::clamp(int(owner.top + px(64)), int(work.top), int(work.bottom) - height);
+  SetWindowPos(panel, HWND_TOP, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+  testReport["testWindowGeometry"] = visibleTestGeometry();
+}
+static bool captureVisibleDesktopPNG(const std::wstring &path) {
+  int left = GetSystemMetrics(SM_XVIRTUALSCREEN), top = GetSystemMetrics(SM_YVIRTUALSCREEN);
+  int width = GetSystemMetrics(SM_CXVIRTUALSCREEN), height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+  HDC source = GetDC(nullptr), memory = CreateCompatibleDC(source);
+  HBITMAP bitmap = CreateCompatibleBitmap(source, width, height);
+  auto old = SelectObject(memory, bitmap);
+  BOOL copied = BitBlt(memory, 0, 0, width, height, source, left, top, SRCCOPY | CAPTUREBLT);
+  SelectObject(memory, old);
+  DeleteDC(memory);
+  ReleaseDC(nullptr, source);
+  IWICBitmap *image = nullptr;
+  IWICStream *stream = nullptr;
+  IWICBitmapEncoder *encoder = nullptr;
+  IWICBitmapFrameEncode *frame = nullptr;
+  IPropertyBag2 *properties = nullptr;
+  HRESULT hr = copied && bitmap ? imaging->CreateBitmapFromHBITMAP(
+                                      bitmap, nullptr, WICBitmapIgnoreAlpha, &image) : E_FAIL;
+  if (SUCCEEDED(hr)) hr = imaging->CreateStream(&stream);
+  if (SUCCEEDED(hr)) hr = stream->InitializeFromFilename(path.c_str(), GENERIC_WRITE);
+  if (SUCCEEDED(hr)) hr = imaging->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder);
+  if (SUCCEEDED(hr)) hr = encoder->Initialize(stream, WICBitmapEncoderNoCache);
+  if (SUCCEEDED(hr)) hr = encoder->CreateNewFrame(&frame, &properties);
+  if (SUCCEEDED(hr)) hr = frame->Initialize(properties);
+  if (SUCCEEDED(hr)) hr = frame->SetSize(width, height);
+  WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGRA;
+  if (SUCCEEDED(hr)) hr = frame->SetPixelFormat(&format);
+  if (SUCCEEDED(hr)) hr = frame->WriteSource(image, nullptr);
+  if (SUCCEEDED(hr)) hr = frame->Commit();
+  if (SUCCEEDED(hr)) hr = encoder->Commit();
+  if (properties) properties->Release();
+  if (frame) frame->Release();
+  if (encoder) encoder->Release();
+  if (stream) stream->Release();
+  if (image) image->Release();
+  if (bitmap) DeleteObject(bitmap);
+  return SUCCEEDED(hr);
+}
 static void sampleVisibleCanvas() {
   auto now = GetTickCount64();
   require(IsWindowVisible(canvas) && !IsIconic(mainWindow),
@@ -215,6 +303,7 @@ static void sampleVisibleCanvas() {
   auto origin = canvasOrigin();
   RECT bounds{};
   GetClientRect(canvas, &bounds);
+  json blockedPoints = json::array();
   // Read visible pixels without requesting a repaint or reading CanvasBuffer.
   for (double nx : {0.96, 0.92, 0.84, 0.12, 0.5}) {
     for (double ny : {0.8, 0.6, 0.9, 0.3, 0.15}) {
@@ -224,8 +313,15 @@ static void sampleVisibleCanvas() {
         continue;
       POINT screen = client;
       ClientToScreen(canvas, &screen);
-      if (WindowFromPoint(screen) != canvas)
+      HWND covering = WindowFromPoint(screen);
+      if (covering != canvas) {
+        wchar_t className[128]{};
+        GetClassNameW(covering, className, 128);
+        blockedPoints.push_back({{"client", {client.x, client.y}},
+                                  {"screen", {screen.x, screen.y}},
+                                  {"coveringClass", narrow(className)}});
         continue;
+      }
       HDC windowDC = GetDC(canvas), screenDC = GetDC(nullptr);
       require(windowDC && screenDC, "Could not read the visible canvas device context");
       COLORREF windowPixel = GetPixel(windowDC, client.x, client.y);
@@ -251,12 +347,21 @@ static void sampleVisibleCanvas() {
       return;
     }
   }
+  testReport["coveredPixelTestPoints"] = blockedPoints;
   require(now - lastVisibleSampleAt < 1500,
            "The composer or another window covered every visible pixel-test point");
 }
 static void finishIntegration(const std::string &error = "") {
   KillTimer(mainWindow, 3);
   KillTimer(mainWindow, 5);
+  if (!error.empty()) {
+    testReport["failureGeometry"] = visibleTestGeometry();
+    CreateDirectoryW(L"design-review", nullptr);
+    testReport["failureScreenshots"] = {
+        {"desktop", captureVisibleDesktopPNG(L"design-review\\popup-integration-failure-desktop.png")},
+        {"main", captureWindowPNG(mainWindow, L"design-review\\popup-integration-failure-main.png")},
+        {"composer", panel && captureWindowPNG(panel, L"design-review\\popup-integration-failure-composer.png")}};
+  }
   testReport["error"] = error;
   testReport["ok"] = error.empty();
   testReport["framesDecoded"] = receivedFrames;
@@ -315,7 +420,7 @@ static bool integrationTimer(WPARAM timer) {
       return true;
     if (testStage == 0) {
       require(targetSelectionSupported, "Host did not advertise message-screen selection");
-      ShowWindow(mainWindow, SW_SHOW);
+      arrangeVisibleTestWindow();
       check(ID_VIEWONLY, false);
       check(ID_PAUSE, false);
       for (size_t index = 0; index < displays.size(); ++index)
@@ -332,6 +437,7 @@ static bool integrationTimer(WPARAM timer) {
         lastDecodedFrameAt = now;
       }
       open();
+      arrangeVisibleTestComposer();
       setTestDraft();
       if (!lastVisibleSampleAt) {
         lastVisibleSampleAt = now;

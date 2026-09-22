@@ -174,6 +174,8 @@ if CommandLine.arguments.contains("--self-test") {
          '          name: windows-design-review-${{ matrix.arch }}\n          path: |\n'
          '            design-review/\n            *self-test*.json\n'
          '            *self-test-errors.txt\n            tests/windows-popup-report.json\n'),
+        ('      - name: Capture native light and dark layouts\n        shell: pwsh\n',
+         '      - name: Capture native light and dark layouts\n        if: always()\n        shell: pwsh\n'),
     ),
 }
 

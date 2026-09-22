@@ -106,6 +106,7 @@ jobs:
           python tests/windows_popup_integration.py "binaries/$env:TEST_ARCH/Portlight.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Native Windows messaging integration failed' }
       - name: Capture native light and dark layouts
+        if: always()
         shell: pwsh
         env:
           TEST_ARCH: ${{ matrix.arch }}
