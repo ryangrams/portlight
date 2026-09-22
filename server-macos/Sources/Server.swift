@@ -29,9 +29,6 @@ struct Subscription {
     var bandwidth = 4000
     var paused = false
     var audio = false
-    var audioCodec = "mulaw"
-    var audioBitrate = 96000
-    var dither = false
     var viewOnly = false
     var regions: [String:CGRect] = [:]
 }
@@ -41,13 +38,14 @@ final class RemoteServer {
     let fixture: Bool
     let fixtureDense: Bool
     let packetWindow: Int
+    lazy var popupMessages = makePopupMessages()
+    var onPopupChange: (() -> Void)?
     var listener: NWListener?
     var sessions: [UUID:RemoteSession] = [:]
     weak var activeSession: RemoteSession?
     var displays: [DisplayInfo] = []
     var onStatus: ((String) -> Void)?
     var onConnection: (() -> Void)?
-    var onCaptureFailure: ((Error) -> Void)?
     var failedAttempts: [Date] = []
     private var topologyTimer: Timer?
     init(security: ServerSecurity, fixture: Bool, fixtureDense: Bool = false, packetWindow: Int = 32) { self.security=security; self.fixture=fixture; self.fixtureDense=fixture && fixtureDense; self.packetWindow=fixture ? max(1,min(32,packetWindow)) : 32 }
@@ -107,11 +105,6 @@ final class RemoteSession {
     private(set) var authenticated=false
     private(set) var subscription=Subscription()
     private var streams: [String:CaptureStream] = [:]
-    private var audioStream: CaptureStream?
-    private var audioGeneration = UUID()
-    private var audioOutbound: [Data] = []
-    private var captureFailed = false
-    private var aacEncoder:AACEncoder?
     private var encoders: [String:TileEncoder] = [:]
     private let encodeQueue=DispatchQueue(label:"com.studioupgrade.suremote.encode",qos:.userInitiated)
     private var processing=Set<String>()
@@ -194,7 +187,8 @@ final class RemoteSession {
     private func welcome(type: String = "welcome") {
         send(["type":type,"version":1,"serverName":server.fixture ? "Portlight Test Host" : (Host.current().localizedName ?? "Mac"),"sessionId":id.uuidString,
               "displays":server.displays.map { d -> [String:Any] in var o=d.json; o["primary"] = d.index == 1; return o },
-              "capabilities":["codecs":["png","jpeg"],"audio":server.fixture ? [] : ["mulaw","aac"],"colorModes":["gray16","color256","rgb565","full"],"maxViewers":1]])
+              "capabilities":["codecs":["png","jpeg"],"audio":server.fixture ? [] : ["mulaw"],"colorModes":["gray16","color256","rgb565","full"],"maxViewers":1,"popupMessages":PopupMessage.capability]])
+        send(server.popupMessages.state)
     }
     func topologyChanged() {
         startingTask?.cancel(); stopCapture(); input.releaseAll(); subscription.ids=[]; outbound=[]; pendingBytes=0; welcome(type:"displays")
@@ -210,6 +204,7 @@ final class RemoteSession {
             guard server.activeSession == nil else { send(["type":"error","code":"busy","message":"Another viewer is connected. Disconnect it before connecting here."]) { [weak self] in self?.close() }; return }
             authenticated=true; authenticationTimer?.invalidate(); server.activeSession=self; welcome(); server.onConnection?(); return
         }
+        if handlePopupMessage(object) { return }
         switch type {
         case "subscribe": applySubscription(object)
         case "frameAck":
@@ -245,39 +240,20 @@ final class RemoteSession {
         }
         let selected=ids.compactMap { wanted in server.displays.first{$0.id == wanted} }
         let actualPreset=commonResolution(preset,displays:selected)
-        let audioCodec = o["audioCodec"] as? String ?? "mulaw"
-        let audioBitrate = o["audioBitrate"] as? Int ?? 96000
-        guard ["mulaw","aac"].contains(audioCodec), [48000,96000,160000,320000].contains(audioBitrate) else { error("subscription","Unsupported audio quality"); return }
         let next=Subscription(revision:revision,ids:ids,preset:actualPreset,color:color,quality:quality,fps:fps,bandwidth:bandwidth,
-                              paused:o["paused"] as? Bool ?? false,audio:(o["audio"] as? Bool ?? false) && !server.fixture,audioCodec:audioCodec,audioBitrate:audioBitrate,dither:o["dither"] as? Bool ?? false,
+                              paused:o["paused"] as? Bool ?? false,audio:(o["audio"] as? Bool ?? false) && !server.fixture,
                               viewOnly:o["viewOnly"] as? Bool ?? false,regions:regions)
-        let preserveAudio = next.audio && subscription.audio && next.audioCodec == subscription.audioCodec && next.audioBitrate == subscription.audioBitrate && audioStream != nil
-        let nextEncoder = preserveAudio ? aacEncoder : (next.audio && next.audioCodec == "aac" ? AACEncoder(bitrate:next.audioBitrate) : nil)
-        guard !next.audio || next.audioCodec != "aac" || nextEncoder != nil else { error("capture","The host could not initialize compressed audio. Turn audio off or choose another quality."); return }
-        startingTask?.cancel(); stopCapture(includeAudio:!preserveAudio); input.releaseAll(); buttonMask=0; heldModifiers=[]
-        subscription=next; captureFailed=false; lastCursorKey=""; outbound=[]; pendingBytes=inFlight.values.reduce(0){$0+$1.0}; encoders=[:]; processing=[]; displaySequences=[:]; if !preserveAudio { audioBytes=Data() }; aacEncoder = nextEncoder
+        startingTask?.cancel(); stopCapture(); input.releaseAll(); buttonMask=0; heldModifiers=[]
+        subscription=next; lastCursorKey=""; outbound=[]; pendingBytes=inFlight.values.reduce(0){$0+$1.0}; encoders=[:]; processing=[]; displaySequences=[:]; audioBytes=Data()
         tokens=Double(max(65536,bandwidth*125)); lastTokenTime=Date()
         var response: [String:Any]=["type":"subscribed","revision":revision,"displays":selected.map { d -> [String:Any] in
-            let s=scaledSize(d,preset:actualPreset); return ["id":d.id,"width":s.0,"height":s.1] },"paused":next.paused,"audio":next.audio,"audioCodec":next.audioCodec,"audioBitrate":next.audioCodec == "aac" ? next.audioBitrate : 192000,"resolution":actualPreset]
+            let s=scaledSize(d,preset:actualPreset); return ["id":d.id,"width":s.0,"height":s.1] },"paused":next.paused,"audio":next.audio,"resolution":actualPreset]
         if actualPreset != preset { response["notice"]="Resolution limited to \(actualPreset.uppercased()) by the selected displays." }
         send(response) { [weak self] in self?.startCapture(revision:revision) }
     }
-    private func stopCapture(includeAudio:Bool = true) {
-        var old=Array(streams.values); streams=[:]
-        if includeAudio { if let audioStream { old.append(audioStream) }; audioStream = nil; audioGeneration = UUID(); audioOutbound = [] }
+    private func stopCapture() {
+        let old=Array(streams.values); streams=[:]
         Task { for stream in old { await stream.stop() } }
-    }
-    func retryCapture() {
-        guard captureFailed, !closed else { return }
-        startingTask?.cancel(); stopCapture(); encoders = [:]
-        captureFailed = false
-        startCapture(revision:subscription.revision)
-    }
-    private func reportCaptureFailure(_ failure:Error,revision:Int) {
-        guard subscription.revision == revision, !closed else { return }
-        captureFailed = true; startingTask?.cancel(); stopCapture()
-        error("capture",captureFailureMessage(failure))
-        server.onCaptureFailure?(failure)
     }
     private func startCapture(revision: Int) {
         guard subscription.revision == revision, !closed, !server.fixture else { return }
@@ -287,16 +263,7 @@ final class RemoteSession {
             guard let self else { return }
             do {
                 let content=try await SCShareableContent.excludingDesktopWindows(false,onScreenWindowsOnly:true)
-                guard !Task.isCancelled, self.subscription.revision == revision, !self.closed else { return }
-                if settings.audio, self.audioStream == nil, let display = self.server.displays.first, let sc = content.displays.first(where:{$0.displayID == display.cgID}) {
-                    let stream = try CaptureStream(display:display,scDisplay:sc,size:(2,2),fps:1,audio:true,audioRate:settings.audioCodec == "aac" ? 48000 : 24000,audioChannels:settings.audioCodec == "aac" && settings.audioBitrate != 48000 ? 2 : 1)
-                    let generation = self.audioGeneration
-                    stream.onAudio = { [weak self] data in DispatchQueue.main.async { guard let self, self.audioGeneration == generation else { return }; self.acceptAudio(data,revision:self.subscription.revision) } }
-                    stream.onError = { [weak self] failure in DispatchQueue.main.async { guard let self, self.audioGeneration == generation else { return }; self.reportCaptureFailure(failure,revision:self.subscription.revision) } }
-                    self.audioStream = stream
-                    try await stream.start()
-                }
-                let captureIDs = settings.paused ? [] : settings.ids
+                let captureIDs = settings.ids.isEmpty && settings.audio ? Array(self.server.displays.prefix(1).map(\.id)) : settings.ids
                 for (i,id) in captureIDs.enumerated() {
                     guard !Task.isCancelled,self.subscription.revision == revision,!self.closed else { return }
                     if settings.paused && i > 0 { break }
@@ -304,15 +271,15 @@ final class RemoteSession {
                     guard let display=self.server.displays.first(where:{$0.id == id}),let sc=content.displays.first(where:{$0.displayID == display.cgID}) else { continue }
                     let audioOnly = settings.paused || settings.ids.isEmpty || settings.regions[id]?.isEmpty == true
                     let size=audioOnly ? (2,2) : scaledSize(display,preset:settings.preset)
-                    let stream=try CaptureStream(display:display,scDisplay:sc,size:size,fps:audioOnly ? 1 : settings.fps,audio:false,audioRate:settings.audioCodec == "aac" ? 48000 : 24000,audioChannels:settings.audioCodec == "aac" && settings.audioBitrate != 48000 ? 2 : 1)
+                    let stream=try CaptureStream(display:display,scDisplay:sc,size:size,fps:audioOnly ? 1 : settings.fps,audio:settings.audio && i == 0)
                     stream.onImage = { [weak self] image in DispatchQueue.main.async { self?.acceptImage(image,display:display,revision:revision) } }
                     stream.onAudio = { [weak self] data in DispatchQueue.main.async { self?.acceptAudio(data,revision:revision) } }
-                    stream.onError = { [weak self] failure in DispatchQueue.main.async { self?.reportCaptureFailure(failure,revision:revision) } }
+                    stream.onError = { [weak self] message in DispatchQueue.main.async { self?.error("capture",message) } }
                     self.streams[id]=stream
                     try await stream.start()
                     if Task.isCancelled || self.subscription.revision != revision { await stream.stop(); return }
                 }
-            } catch { if !Task.isCancelled { self.reportCaptureFailure(error,revision:revision) } }
+            } catch { if self.subscription.revision == revision { self.error("capture","Screen capture failed. Allow Portlight Host in Screen & System Audio Recording, then reconnect. \(error.localizedDescription)") } }
         }
     }
     private func acceptImage(_ image: CGImage,display: DisplayInfo,revision: Int) {
@@ -325,7 +292,7 @@ final class RemoteSession {
         let motion=settings.quality == "motion"
         let quality=settings.bandwidth > 0 && settings.bandwidth < 1500 ? 0.4 : 0.7
         encodeQueue.async { [weak self] in
-            let tiles=encoder.encode(image,region:region,color:settings.color,quality:quality,motion:motion,auto:settings.quality == "auto",dither:settings.dither)
+            let tiles=encoder.encode(image,region:region,color:settings.color,quality:quality,motion:motion,auto:settings.quality == "auto")
             let timings=encoder.metrics
             DispatchQueue.main.async {
                 guard let self,self.subscription.revision == revision,self.subscription.ids.contains(display.id),!self.subscription.paused,!self.closed else { return }
@@ -351,19 +318,6 @@ final class RemoteSession {
     }
     private func acceptAudio(_ pcm: Data,revision: Int) {
         guard !closed,subscription.revision == revision,subscription.audio else { return }
-        if subscription.audioCodec == "aac" {
-            guard let encoder = aacEncoder else { return }
-            audioBytes.append(pcm)
-            let bytesPerPacket = 1024*encoder.channels*2
-            if audioBytes.count > bytesPerPacket*8 { audioBytes = Data(audioBytes.suffix(bytesPerPacket*8)) }
-            while audioBytes.count >= bytesPerPacket {
-                let input = Data(audioBytes.prefix(bytesPerPacket)); audioBytes.removeFirst(bytesPerPacket)
-                guard let compressed = encoder.encode(input) else { continue }; sequence += 1
-                let packet = binaryMessage(["type":"audio","revision":revision,"codec":"aac","sampleRate":48000,"channels":encoder.channels,"sequence":sequence,"samples":1024,"bitrate":encoder.bitrate,"cookie":encoder.cookie.base64EncodedString()],payload:compressed)
-                queueAudio(packet)
-            }
-            return
-        }
         let ulaw=pcm.withUnsafeBytes { raw -> Data in let samples=raw.bindMemory(to:Int16.self); return Data(samples.map(muLaw)) }
         audioBytes.append(ulaw)
         if audioBytes.count > 4800 { audioBytes=audioBytes.suffix(4800) }
@@ -371,18 +325,12 @@ final class RemoteSession {
             let samples=audioBytes.prefix(480); audioBytes.removeFirst(480)
             sequence+=1
             let packet=binaryMessage(["type":"audio","revision":revision,"codec":"mulaw","sampleRate":24000,"channels":1,"sequence":sequence,"samples":480],payload:Data(samples))
-            queueAudio(packet)
+            if pendingBytes < 512*1024, networkBytes < 256*1024, tokens >= Double(packet.count) { tokens-=Double(packet.count); transmit(packet,sequence:nil) }
         }
-    }
-    private func queueAudio(_ packet:Data) {
-        audioOutbound.append(packet)
-        if audioOutbound.count > 12 { audioOutbound.removeFirst(audioOutbound.count-12) }
-        drain()
     }
     private func drain() {
         guard !closed else { return }
-        while !audioOutbound.isEmpty, networkBytes < 64*1024 { transmit(audioOutbound.removeFirst(),sequence:nil) }
-        while audioOutbound.isEmpty,!outbound.isEmpty,inFlight.count < server.packetWindow,networkBytes < 64*1024 {
+        while !outbound.isEmpty,inFlight.count < server.packetWindow {
             let next=outbound[0]
             let inFlightBytes=inFlight.values.reduce(0) { $0+$1.0 }
             guard inFlight.isEmpty || inFlightBytes+next.0.count <= 2*1024*1024 else { break }
@@ -396,7 +344,7 @@ final class RemoteSession {
         networkBytes+=data.count
         connection.send(content:data,contentContext:NWConnection.ContentContext(identifier:"media",metadata:[metadata]),isComplete:true,completion:.contentProcessed { [weak self] error in
             self?.networkBytes-=data.count
-            if error != nil { self?.close() } else { self?.drain() }
+            if error != nil { self?.close() }
         })
         bytesSent+=data.count
     }

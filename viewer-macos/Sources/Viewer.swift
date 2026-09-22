@@ -61,6 +61,10 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
     private var sessionErrorAlert: NSAlert?
     private var screenshotFixture = false
     private let transport = RemoteTransport()
+    private lazy var popupSession = ViewerPopupSession { [weak self] object in
+        guard let self, self.ready, !self.demo else { return }
+        self.transport.send(object)
+    }
     private let audio = RemoteAudio()
     private let osc = OSCReceiver()
     private var presets = PresetStore()
@@ -365,7 +369,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
         let b = NSButton(title:title,image:NSImage(systemSymbolName:symbol,accessibilityDescription:title) ?? NSImage(),target:self,action:action)
         b.bezelStyle = .texturedRounded; b.contentTintColor = .secondaryLabelColor; b.imagePosition = .imageLeading; b.font = .systemFont(ofSize:12); b.toolTip = title; b.setAccessibilityLabel(title); return b
     }
-    func toolbarAllowedItemIdentifiers(_ toolbar:NSToolbar) -> [NSToolbarItem.Identifier] { toolbarDefaultItemIdentifiers(toolbar) }
+    func toolbarAllowedItemIdentifiers(_ toolbar:NSToolbar) -> [NSToolbarItem.Identifier] { toolbarDefaultItemIdentifiers(toolbar) + (toolbar.identifier == "Portlight.ConnectionsToolbar" ? [] : [.init("message")]) }
     func toolbarDefaultItemIdentifiers(_ toolbar:NSToolbar) -> [NSToolbarItem.Identifier] {
         if toolbar.identifier == "Portlight.ConnectionsToolbar" { return [.toggleSidebar,.init("connectionDivider"),.init("connectionTitle"),.flexibleSpace] }
         return [.init("identity"),.flexibleSpace] + ["control","pause","audio","pan","resolution","color"].map { .init($0) } + [.flexibleSpace] + ["displays","zoom","dataRate","disconnect"].map { .init($0) }
@@ -383,6 +387,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
             let b = toolbarButton("",symbol:symbol,action:action); b.setAccessibilityLabel(title); b.toolTip = title; item.label = title; item.view = b; return b
         }
         switch id.rawValue {
+        case "message": _ = icon("Send message", "message", #selector(messageAction))
         case "identity":
             let identity = vertical(spacing:1)
             sessionNameLabel.lineBreakMode = .byTruncatingTail
@@ -393,6 +398,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
             identity.heightAnchor.constraint(equalToConstant:28).isActive = true
             identity.widthAnchor.constraint(equalToConstant:210).isActive = true
             sessionNameLabel.widthAnchor.constraint(lessThanOrEqualTo:identity.widthAnchor).isActive = true
+            ViewerPopupSession.addLauncher(to: identity, button: toolbarButton("", symbol: "message", action: #selector(messageAction)))
             item.view = identity; item.label = "Connection"; item.visibilityPriority = .high
         case "displays":
             map.widthAnchor.constraint(equalToConstant:150).isActive = true; map.heightAnchor.constraint(equalToConstant:28).isActive = true
@@ -437,6 +443,10 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
         item.menuFormRepresentation = overflow
         return item
     }
+    @objc private func messageAction() {
+        releaseInput(); activePopover?.close()
+        popupSession.show(appearance:window?.appearance, defaults:testing || demo ? nil : .standard)
+    }
     @objc private func toolbarChoice(_ sender:NSMenuItem) {
         switch sender.representedObject as? String {
         case "resolution": guard resolutionPopup.item(at:sender.tag+1)?.isEnabled == true else { return }; resolutionPopup.selectItem(at:sender.tag+1); settingsAction()
@@ -448,6 +458,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
     }
     @objc private func overflowAction(_ sender:NSMenuItem) {
         switch sender.representedObject as? String {
+        case "message": messageAction()
         case "displays": expandedDisplays()
         case "pause": pauseAction()
         case "control": controlToggleAction()
@@ -687,6 +698,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
     }
     private func disconnect() { connectionAttempt = UUID(); pendingConnection = nil; releaseInput(); transport.disconnect(); didDisconnect(); statusLabel.stringValue = "Disconnected." }
     private func didDisconnect() {
+        popupSession.disconnect()
         let finishAction = connectionEstablished ? "finish" : "restore"; connectionEstablished = false
         ready = false; connecting = false; acceptedRevision = -1; connectButton.title = "Connect"; connectButton.isEnabled = !activationInFlight && !restorationInFlight; advancedButton.isEnabled = connectButton.isEnabled; hostField.isEnabled = true; passwordField.isEnabled = true; presentConnections(); audio.stop(); pointerButtons = 0; pressedKeys.removeAll(); modifiers = []
         if let transaction = zeroTierTransaction {
@@ -701,6 +713,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
     }
     private func receive(_ object:[String:Any],data:Data?) {
         guard let type = object["type"] as? String else { return }
+        if popupSession.receive(object) { return }
         switch type {
         case "welcome","displays":
             guard let rows = object["displays"] as? [[String:Any]], rows.count <= 32 else { statusLabel.stringValue = "The computer sent an invalid display list."; return }
@@ -721,6 +734,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, NSToolbarDel
             presentSession(name:object["serverName"] as? String ?? hostField.stringValue); updateNetworkStatus("Connected")
             refreshMonitorButtons(); validateResolution(); rebuildCanvases(); scheduleSubscription(immediate:true)
             statusLabel.stringValue = "Connected to \(object["serverName"] as? String ?? hostField.stringValue). Choose the displays to view."
+            if type == "welcome" { popupSession.welcome(object) }
         case "subscribed":
             guard let ack = object["revision"] as? Int, ack == revision, let displays = object["displays"] as? [[String:Any]] else { return }
             let sizes = displays.compactMap { row -> (Int,Int)? in

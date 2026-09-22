@@ -12,7 +12,7 @@ struct DisplayInfo {
     let bounds: CGRect
     var json: [String: Any] {
         ["id": id, "name": name, "index": index, "width": width, "height": height,
-         "x": Int(bounds.minX), "y": Int(bounds.minY), "logicalWidth": bounds.width, "logicalHeight": bounds.height, "scale": Double(width) / max(1, bounds.width)]
+         "x": Int(bounds.minX), "y": Int(bounds.minY), "scale": Double(width) / max(1, bounds.width)]
     }
 }
 

@@ -36,6 +36,8 @@ static std::wstring buttonText(HWND h) {
   return t;
 }
 static void drawToolbarIcon(HDC dc, int id, RECT r, COLORREF color) {
+  if (portlight_popup::drawIcon(dc, id, r, color))
+    return;
   int cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
   RECT box{cx - px(10), cy - px(10), cx + px(10), cy + px(10)};
   if (id >= ID_HD && id <= ID_UHD) {
@@ -1397,6 +1399,7 @@ static void layout() {
     updateScroll();
   }
   InvalidateRect(mainWindow, nullptr, FALSE);
+  portlight_popup::layoutLauncher();
 }
 static void fitWindowToDisplays() {
   if (!connected || !fit || fullscreen || IsZoomed(mainWindow) ||

@@ -1955,7 +1955,12 @@ static LRESULT CALLBACK canvasProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   }
   return DefWindowProcW(hwnd, msg, wp, lp);
 }
+namespace portlight_popup {
+static void layoutLauncher();
+static bool drawIcon(HDC, int, RECT, COLORREF);
+}
 #include "ui.hpp"
+#include "popup_ui.hpp"
 
 static void populateDisplays(const json &msg) {
   auto previously = selection();
@@ -2008,6 +2013,8 @@ static void handleNetwork(const json &msg, bool localHelper = false) {
       msg["_generation"].get<uint64_t>() != connectGeneration)
     return;
   auto type = msg.value("type", "");
+  if (portlight_popup::receive(msg))
+    return;
   if (type == "zeroTierResult") {
     if (!localHelper)
       return;
@@ -3251,11 +3258,13 @@ static int visualTest(const std::wstring &folder) {
     return 1;
   }
 }
+#include "popup_tests.hpp"
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR arguments, int show) {
   visualMode =
       arguments && std::wstring(arguments).rfind(L"--visual-test", 0) == 0;
   integrationMode =
       arguments && std::wstring(arguments) == L"--integration-test";
+  portlight_popup::configureTests(arguments);
   using DpiFn = BOOL(WINAPI *)(HANDLE);
   auto setDpi = (DpiFn)GetProcAddress(GetModuleHandleW(L"user32.dll"),
                                       "SetProcessDpiAwarenessContext");
@@ -3306,6 +3315,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR arguments, int show) {
                                nullptr, nullptr, instance, nullptr);
   if (!mainWindow)
     return 1;
+  portlight_popup::install();
+  if (int result = portlight_popup::runTests(arguments); result >= 0)
+    return result;
   if (visualMode) {
     int count = 0;
     LPWSTR *args = CommandLineToArgvW(GetCommandLineW(), &count);
@@ -3360,6 +3372,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR arguments, int show) {
     startOSC();
   MSG msg;
   while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+    if (portlight_popup::dialogMessage(msg))
+      continue;
     if (IsWindowVisible(settingsPanel) &&
         (msg.hwnd == settingsPanel || IsChild(settingsPanel, msg.hwnd)) &&
         IsDialogMessageW(settingsPanel, &msg))
