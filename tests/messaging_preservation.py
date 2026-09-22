@@ -179,7 +179,7 @@ if CommandLine.arguments.contains("--self-test") {
 
 
 def baseline(path: str) -> str:
-    return HOST_BASELINE if path.startswith("server-macos/") else CLIENT_BASELINE
+    return HOST_BASELINE if path.startswith("server-macos/") or path == "benchmarks/EncoderValidation.swift" else CLIENT_BASELINE
 
 
 def released(path: str) -> bytes:
