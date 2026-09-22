@@ -49,10 +49,10 @@ static void exerciseCanvasInput() {
   POINT point{x, y};
   ClientToScreen(canvas, &point);
   SendMessageW(canvas, WM_MOUSEWHEEL, MAKEWPARAM(0, WHEEL_DELTA), MAKELPARAM(point.x, point.y));
-  SendMessageW(canvas, WM_KEYDOWN, 'A', 0);
-  require(heldKeys.count('A') == 1, "Canvas did not accept key down with the composer open");
-  SendMessageW(canvas, WM_KEYUP, 'A', 0);
-  require(heldKeys.count('A') == 0, "Canvas did not release the key");
+  SendMessageW(canvas, WM_KEYDOWN, VK_LEFT, 0);
+  require(heldKeys.count(VK_LEFT) == 1, "Canvas did not accept key down with the composer open");
+  SendMessageW(canvas, WM_KEYUP, VK_LEFT, 0);
+  require(heldKeys.count(VK_LEFT) == 0, "Canvas did not release the key");
   SendMessageW(canvas, WM_CHAR, 'Z', 0);
   require(IsWindowVisible(panel), "Canvas interaction closed the composer");
 }

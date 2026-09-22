@@ -234,7 +234,7 @@ async def run(viewer: Path, report_path: Path):
                         assert message["dx"] == 0 and message["dy"] != 0, message
                         observed["wheel"] += 1
                     elif kind == "key":
-                        assert message["key"] in (65, 97) and isinstance(message["down"], bool), message
+                        assert message["key"] == 0xff51 and isinstance(message["down"], bool), message
                         observed["keyDown" if message["down"] else "keyUp"] += 1
                     else:
                         assert message["text"] == "Z", "Editor text escaped into remote input"
